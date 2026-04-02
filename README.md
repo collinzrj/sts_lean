@@ -1,114 +1,118 @@
-# StS Infinite Combo Lean 4 Verification Benchmark
+[English Version](README_en.md)
 
-Evaluates whether LLMs can formally prove that Slay the Spire card combos loop infinitely.
+# 基于Lean实现的形式化杀戮尖塔核心逻辑引擎
 
-## Proof Levels
+- 本项目通过Lean实现了一个杀戮尖塔核心游戏的引擎，包括关键的抽牌，弃牌，洗牌逻辑，各角色状态机，90+卡牌（包括能力牌）
+- 本项目是可拓展的，在所有已经定义的卡牌中，都可以自由组合卡牌，用python脚本构造新的proposition来进行证明
+- 同时，本项目对一系列案例combo提供了证明样本
+- 核心证明思路：构造一个循环，从一个手牌堆，抽牌堆，弃牌堆状态出发，可以在打出正数伤害的情况下回到当前状态
 
-**Level 1 — Existence:** The player is "lucky" — there exists some shuffle order where the combo loops.
-- LLM provides: `setupTrace`, `loopTrace`, `stateA`, `stateB`
-- Lean verifies via `native_decide`: setup reaches stateA, loop reaches stateB, states match, damage increased
-- Proposition: `InfiniteCombo`
 
-**Level 2 — Guaranteed Loop:** Only the setup is lucky. The loop works despite ANY adversarial shuffle order.
-- Setup uses Level 1 (lucky draws). Loop must handle all shuffles via `ShuffleOracle`.
-- LLM must prove `∀ oracle, validOracle oracle → ∃ loopTrace stateB, ...`
-- `native_decide` allowed only for engine computation helpers (individual steps, state comparisons)
-- `native_decide` NOT allowed in main proof body — oracle quantification must use real tactics
-- Proposition: `GuaranteedInfiniteCombo`
+## 证明等级
 
-## Structure
+**Level 1 — 存在性证明：** 
+假设玩家是幸运的，一定能抽到自己想要的牌，只需证明存在某种洗牌顺序使连击循环。
+- LLM 提供：`setupTrace`（准备阶段操作序列）、`loopTrace`（循环操作序列）、`stateA`、`stateB`（循环前后状态）
+- Lean 通过 `native_decide` 验证：准备阶段到达 stateA，循环到达 stateB，状态匹配，伤害增加
+- 这种证明较为简单，实际上只需要提供一个trace即可，不需要复杂的证明技术
+- 命题：`InfiniteCombo`
+
+**Level 2 — 保证循环：** 玩家可以在前几个回合进行启动，为了降低复杂度，我们假设在前几个启动回合，玩家是幸运的，但是在最后达到无限的回合，必须能够处理所有情况
+- 准备阶段使用 Level 1（幸运抽牌），循环通过 `ShuffleOracle` 处理所有洗牌
+- LLM 必须证明 `∀ oracle, validOracle oracle → ∃ loopTrace stateB, ...`
+  - 即，在所有需要洗牌的时候，对于任何一种洗牌的排列，都可以找到某种方案打出无限
+- `native_decide` 仅允许用于引擎计算辅助引理（单步执行、状态比较）
+- `native_decide` 不允许出现在主证明体中——oracle 量化必须使用真正的证明策略
+  - 这是一个heuristic，用来鼓励模型减少穷举
+- 命题：`GuaranteedInfiniteCombo`
+
+## 项目结构
 
 ```
 StSVerify/
-  Engine.lean                — Game engine: state, effects, actions, execute, executeL2
-  EngineHelperLemmas.lean    — Oracle bridge lemmas (stepL2_oracle_cond, etc.)
-  CardId.lean                — Global enum of 93 card names
-  Cards/                     — One file per card definition (93 files)
-  CardDB.lean                — CardName → CardDef lookup
-  Demo.lean                  — Working Level 1 proof (Silent 5-card combo)
-  CombosTemplateL1/          — Level 1 templates with sorry (12 combos)
-  CombosTemplateL2/          — Level 2 templates with sorry (12 combos)
-  CombosLevel1Solution/      — Level 1 reference solutions (12/12 verified)
-  CombosLevel2Solution/      — Level 2 reference solutions (12/12 verified)
+  Engine.lean                — 游戏引擎：状态、效果、动作、execute、executeL2
+  EngineHelperLemmas.lean    — 一些提前证明好的可以辅助证明的helper
+  CardId.lean                — 93 张卡牌名称全局枚举
+  Cards/                     — 每张卡牌一个定义文件（93 个文件）
+  CardDB.lean                — CardName → CardDef 查找表
+  Demo.lean                  — Level 1 证明示例（猎手 5 卡连击）
+  CombosTemplateL1/          — Level 1 模板（12 个连击，含 sorry）
+  CombosTemplateL2/          — Level 2 模板（12 个连击，含 sorry）
+  CombosLevel1Solution/      — Level 1 参考解答（12/12 已验证）
+  CombosLevel2Solution/      — Level 2 参考解答（12/12 已验证）
 data/
-  combos_v2.jsonl            — Combo definitions (cards, enemy state, effects)
-eval/
-  eval_lean.py               — LLM evaluation harness
-  prompt_template.txt        — Prompt template
-generate_cards.py            — Generates Cards/*.lean and CardDB.lean
-generate_templates.py        — Generates template files from combos_v2.jsonl
+  combos_v2.jsonl            — 连击定义（卡牌、敌人状态、效果）
+generate_cards.py            — 生成 Cards/*.lean 和 CardDB.lean
+generate_templates.py        — 从 combos_v2.jsonl 生成模板文件
 ```
 
-## Combos (12)
+## 连击列表（12 个）
 
-| Combo | Cards | Character | Shuffle Complexity |
-|-------|-------|-----------|-------------------|
-| DropkickExhaust | 11 | Ironclad | Singleton (deterministic) |
-| CorruptionDropkick | 13 | Ironclad | Singleton (deterministic) |
-| HeelHookExhaust | 10 | Silent | Singleton (deterministic) |
-| StreamlineHologram | 11 | Defect | No shuffle in loop |
-| AcrobaticsTactician | 12 | Silent | 4 shuffle points |
-| MantraDivine | 13 | Watcher | 6 permutations |
-| StandardWatcher | 12 | Watcher | 4 cases (2×2) |
-| StormOfSteel | 4 | Silent | 6 permutations |
-| StormOfSteel2Prep | 5 | Silent | 3 shuffle points |
-| StormOfSteel3Prep | 6 | Silent | 3 shuffle points |
-| StormStrike | 5 | Silent | 576 cases (24×24) |
-| TantrumFearNoEvil | 11 | Watcher | 48 cases (24×2) |
+| 连击 | 卡牌数 | 角色 | 洗牌复杂度 |
+|------|--------|------|-----------|
+| 飞踢消耗精简无限 | 11 | 铁甲战士 | 单卡洗牌（确定性） |
+| 腐化消耗精简+飞踢 | 13 | 铁甲战士 | 单卡洗牌（确定性） |
+| 足跟勾+消耗精简 | 10 | 静默猎手 | 单卡洗牌（确定性） |
+| 流线型+全息影像+精简 | 11 | 故障机器人 | 循环无洗牌 |
+| 双杂技+战术大师 | 12 | 静默猎手 | 4 个洗牌点 |
+| 真言/神格混合无限 | 13 | 观者 | 6 种排列 |
+| 标准沙雕无限 | 12 | 观者 | 4 种情况（2×2） |
+| 钢铁风暴（4卡） | 4 | 静默猎手 | 6 种排列 |
+| 钢铁风暴+2准备（5卡） | 5 | 静默猎手 | 3 个洗牌点 |
+| 钢铁风暴+3准备（6卡） | 6 | 静默猎手 | 3 个洗牌点 |
+| 钢铁风暴+打击（5卡） | 5 | 静默猎手 | 576 种情况（24×24） |
+| 发泄+不惧妖邪双输出 | 11 | 观者 | 48 种情况（24×2） |
 
-## L2 Proof Techniques
+## L2 证明技术
 
-The harder combos (StormStrike, TantrumFearNoEvil, StormOfSteel 2/3Prep) use the **drawCondBool bridge** pattern:
+较难的连击（钢铁风暴+打击、发泄+不惧妖邪、钢铁风暴 2/3 准备）使用 **drawCondBool 桥接** 模式：
 
-1. Define `drawCondBool fo p1 p2 si s trace : Bool` — steps through execution using a fixed oracle, checking at each draw step that either drawPile is non-empty or we're at a known shuffle point
-2. Verify `drawCondBool` passes for all permutation pairs with a single `native_decide` (concrete engine computation)
-3. Prove `drawCondBool_bridge`: if the check passes and the real oracle agrees at shuffle points, `executeL2` gives the same result (proved by induction with `stepL2_oracle_cond`)
-4. Main theorem combines the bridge with permutation completeness
+1. 定义 `drawCondBool fo p1 p2 si s trace : Bool`——使用固定 oracle 逐步执行，在每个抽牌步骤检查抽牌堆是否非空或是否在已知洗牌点
+2. 通过单次 `native_decide` 验证所有排列组合的 `drawCondBool`（具体引擎计算）
+3. 证明 `drawCondBool_bridge`：如果检查通过且真实 oracle 在洗牌点一致，则 `executeL2` 给出相同结果（通过归纳法和 `stepL2_oracle_cond` 证明）
+4. 主定理结合桥接与排列完备性
 
-Simpler combos use direct step-chain proofs (`exL2_cons` + `perm_singleton_eq`/`perm_3_cases`).
+较简单的连击使用直接步骤链证明（`exL2_cons` + `perm_singleton_eq`/`perm_3_cases`）。
 
-## Soundness
+## 安全性检查
 
-The eval harness checks LLM submissions for:
-- `sorry` — incomplete proof
-- `axiom` — false assumptions
-- `unsafe` — bypass kernel
-- `instance` — unsound decidability instances
-- Framework function redefinitions
-- Unauthorized imports
-- L2: `native_decide` not in main proof body (only engine helpers)
+评估框架检查 LLM 提交的代码：
+- `sorry` — 不完整证明
+- `axiom` — 虚假假设
+- `unsafe` — 绕过内核
+- `instance` — 不健全的可判定性实例
+- 框架函数重定义
+- 未授权的导入
+- L2：`native_decide` 不在主证明体中（仅限引擎辅助引理）
 
-## Commands
+## 命令
 
 ```bash
-# Build and verify all proofs
+# 构建并验证所有证明
 cd lean_framework && export PATH="$HOME/.elan/bin:$PATH" && lake build
 
-# Verify a single solution
+# 验证单个解答
 lake env lean StSVerify/CombosLevel1Solution/ComboDropkickExhaust.lean
 lake env lean StSVerify/CombosLevel2Solution/ComboDropkickExhaust.lean
 
-# Generate templates from combo data
+# 从连击数据生成模板
 python generate_templates.py
-
-# Run LLM eval
-python eval/eval_lean.py --model openai/gpt-5.4 --thinking --parallel 8
 ```
 
-## Known Limitations
+## 已知限制
 
-### Not Implemented
-- **Relics** — Sundial, Unceasing Top, etc. 10 relic combos excluded from dataset.
-- **Retain** — Cards staying in hand across turns (Miracle, Insight, Meditate+).
-- **Burst/Double Tap** — "Next N skills/attacks play twice."
-- **X-cost cards** — Variable cost not modeled.
-- **HP tracking** — Engine doesn't track HP or death.
-- **Enemy actions** — `endTurn` doesn't model enemy attacking or debuff decay.
-- **Vulnerability/Weak decay** — Debuffs stay constant (real game: decrease by 1 each turn).
-- **Strength** — Not tracked.
+### 未实现
+- **遗物** — 日晷、永不停歇的陀螺等。10 个遗物连击已从数据集中排除。
+- **保留** — 卡牌跨回合保留（奇迹、洞察、冥想+）。
+- **连发/双击** — "接下来 N 个技能/攻击打出两次"。
+- **X 费卡** — 可变费用未建模。
+- **HP 追踪** — 引擎不追踪生命值或死亡。
+- **敌人行动** — `endTurn` 不模拟敌人攻击或减益衰减。
+- **易伤/虚弱衰减** — 减益保持不变（真实游戏：每回合减少 1）。
+- **力量** — 未追踪。
 
-### Simplifications
-- **Enemy state is static** — Vulnerable/weak set as initial parameters, never decay.
-- **Block resets on endTurn** — Barricade (block persists) not modeled.
-- **Orb passives** — Orbs channeled/evoked but per-turn effects not triggered.
-- **Damage rounding** — Vulnerable 1.5× uses integer division (matches game).
+### 简化
+- **敌人状态固定** — 易伤/虚弱作为初始参数设定，不衰减。
+- **格挡每回合重置** — 壁垒（格挡保留）未建模。
+- **充能球被动** — 充能球可引导/唤出，但不触发每回合效果。
+- **伤害取整** — 易伤 1.5 倍使用整数除法（与游戏一致）。
