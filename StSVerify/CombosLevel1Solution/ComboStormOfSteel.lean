@@ -1,0 +1,114 @@
+/-
+  Storm of Steel+ + Tactician+ + Reflex+ + Prepared+ (4 cards)
+  8 damage per loop (2 Shivs x 4 damage)
+
+  Engine v2: CardInstance system, no token bags.
+  Storm of Steel creates Shiv CardInstances dynamically via nextId.
+  autoDrain discards hand R-to-L, fires Tactician (+2E top) and Reflex (draw 3 bottom).
+-/
+
+import StSVerify.Engine
+import StSVerify.CardDB
+
+open CardName Action
+
+namespace ComboStormOfSteel
+
+def cards : List (CardName × Nat) := [
+  (StormOfSteelPlus, 1), (TacticianPlus, 1), (ReflexPlus, 1), (PreparedPlus, 1)]
+
+def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
+
+-- Card instance IDs assigned by mkInitialState:
+-- 0 = Storm of Steel+, 1 = Tactician+, 2 = Reflex+, 3 = Prepared+
+
+-- Setup: draw all 4, play Storm (creates Shivs 4,5,6), draw 3, play 3 Shivs
+def setupTrace : List Action := [
+  .draw 0, .draw 1, .draw 2, .draw 3, .failDraw,
+  .play 0,                          -- Storm: discard hand R-to-L, Tact+2E, Reflex draw 3, 3 Shivs
+  .draw 1, .draw 2, .draw 3,       -- draw 3 from shuffled discard
+  .play 4, .play 5, .play 6        -- play 3 Shivs (4 dmg each, exhaust)
+]
+
+-- Loop: Prep cycle, discard Reflex for draw 3, play Storm again
+-- Creates Shivs 7,8 (2 hand cards at Storm time)
+def loopTrace : List Action := [
+  .play 3,                          -- Prepared+: draw 2, discard 1
+  .draw 0, .failDraw,              -- draw SoS from shuffled discard, fail 2nd draw
+  .discard 2,                       -- discard Reflex (trigger: draw 3)
+  .draw 2, .failDraw,              -- draw Reflex from shuffled discard, fail rest
+  .play 0,                          -- Storm: discard 2 hand cards, create 2 Shivs
+  .draw 1, .draw 2, .draw 3,       -- draw 3 from shuffled discard
+  .play 7, .play 8                  -- play 2 Shivs
+]
+
+-- #eval execute cardDB (mkInitialState cardDB cards enemy) setupTrace
+-- #eval execute cardDB (mkInitialState cardDB cards enemy) (setupTrace ++ loopTrace)
+
+def stateA : GameState := {
+  hand := [{ id := 3, name := PreparedPlus, cost := 0, damage := 0 },
+           { id := 2, name := ReflexPlus, cost := 0, damage := 0 },
+           { id := 1, name := TacticianPlus, cost := 0, damage := 0 }]
+  drawPile := []
+  discardPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 }]
+  exhaustPile := [{ id := 6, name := Shiv, cost := 0, damage := 4 },
+                  { id := 5, name := Shiv, cost := 0, damage := 4 },
+                  { id := 4, name := Shiv, cost := 0, damage := 4 }]
+  inUse := []
+  actionQueue := []
+  energy := 4
+  damage := 12
+  block := 0
+  stance := .Neutral
+  orbs := []
+  orbSlots := 3
+  focus := 0
+  enemy := { vulnerable := 0, weak := 0, intending := false }
+  activePowers := []
+  nextId := 7
+  noDraw := false
+  corruptionActive := false
+}
+
+def stateB : GameState := {
+  hand := [{ id := 3, name := PreparedPlus, cost := 0, damage := 0 },
+           { id := 2, name := ReflexPlus, cost := 0, damage := 0 },
+           { id := 1, name := TacticianPlus, cost := 0, damage := 0 }]
+  drawPile := []
+  discardPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 }]
+  exhaustPile := [{ id := 8, name := Shiv, cost := 0, damage := 4 },
+                  { id := 7, name := Shiv, cost := 0, damage := 4 },
+                  { id := 6, name := Shiv, cost := 0, damage := 4 },
+                  { id := 5, name := Shiv, cost := 0, damage := 4 },
+                  { id := 4, name := Shiv, cost := 0, damage := 4 }]
+  inUse := []
+  actionQueue := []
+  energy := 5
+  damage := 20
+  block := 0
+  stance := .Neutral
+  orbs := []
+  orbSlots := 3
+  focus := 0
+  enemy := { vulnerable := 0, weak := 0, intending := false }
+  activePowers := []
+  nextId := 9
+  noDraw := false
+  corruptionActive := false
+}
+
+theorem setup_ok :
+    execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA := by
+  native_decide
+
+theorem loop_ok :
+    execute cardDB stateA loopTrace = some stateB := by
+  native_decide
+
+theorem same_mod : sameModAccum stateA stateB = true := by native_decide
+theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
+
+theorem ComboStormOfSteel_infinite : InfiniteCombo cardDB cards enemy :=
+  ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, same_mod, dealt_dmg⟩
+
+end ComboStormOfSteel

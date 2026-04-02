@@ -1,0 +1,111 @@
+/-
+  Global card name enum. Every card in the dataset gets a constructor.
+  Token/status cards included. Cards with copies (e.g., 2x Prepared+)
+  are distinguished at the combo level, not here — this is card TYPES.
+-/
+
+inductive CardName where
+  -- Ironclad
+  | BashPlus
+  | Dropkick
+  | TrueGritPlus
+  | BurningPactPlus
+  | PommelStrikePlus
+  | ShrugItOff
+  | ShrugItOffPlus
+  | Offering
+  | OfferingPlus
+  | Purity
+  | BattleCryPlus
+  | BattleTrancePlus
+  | Corruption
+  | DarkEmbracePlus
+  | FeelNoPainPlus
+  | MetallicizePlus
+  | JuggernautPlus
+  | ImperviousPlus
+  | SecondWindPlus
+  | PowerThroughPlus
+  | Anger
+  -- Silent
+  | NeutralizePlus
+  | PreparedPlus
+  | ReflexPlus
+  | TacticianPlus
+  | AcrobaticsPlus
+  | BackflipPlus
+  | CalculatedGamblePlus
+  | HeelHookPlus
+  | BladeDancePlus
+  | EscapePlan
+  | EscapePlanPlus
+  | AfterImage
+  | AccuracyPlus
+  | AThousandCuts
+  | CaltropPlus
+  | WraithFormPlus
+  | AdrenalinePlus
+  | BurstPlus
+  | BackstabPlus
+  | DieDieDiePlus
+  | MalaisePlus
+  | PiercingWail
+  | GrandFinalePlus
+  | EvisceratePlus
+  -- Defect
+  | ZapPlus
+  | ClawPlus
+  | BeamCellPlus
+  | CoolheadedPlus
+  | SkimPlus
+  | HologramPlus
+  | AllForOnePlus
+  | TurboPlus
+  | RecyclePlus
+  | StreamlinePlus
+  | GlacierPlus
+  | DefragmentPlus
+  | BiasedCognitionPlus
+  | CapacitorPlus
+  | SelfRepairPlus
+  | CreativeAIPlus
+  | Buffer
+  | BufferPlus
+  | RebootPlus
+  | Madness
+  -- Watcher
+  | EruptionPlus
+  | TantrumPlus
+  | InnerPeace
+  | InnerPeacePlus
+  | FearNoEvilPlus
+  | VigilancePlus
+  | IndignationPlus
+  | EmptyMindPlus
+  | MeditatePlus
+  | FlurryOfBlowsPlus
+  | Rushdown
+  | MentalFortressPlus
+  | EstablishmentPlus
+  | PrayPlus
+  | ProstatePlus
+  | Scrawl
+  | VaultPlus
+  | TalkToTheHandPlus
+  | OmnisciencePlus
+  | StormOfSteelPlus
+  | StrikeSilent
+  -- Colorless
+  | Finesse
+  | FlashOfSteel
+  -- Tokens / Status / Curse
+  | Shiv
+  | Wound
+  | Void
+  | Miracle
+  | Insight
+  | Necronomicurse
+  | DeusExMachina
+  deriving Repr, DecidableEq, BEq, Inhabited, Hashable, Ord
+
+open CardName

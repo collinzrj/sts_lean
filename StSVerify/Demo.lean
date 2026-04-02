@@ -1,0 +1,124 @@
+/-
+  Demo: Silent 5-card infinite combo
+  Prepared+ x2, Reflex+ x2, Neutralize+ x1
+
+  v2 engine: unified CardInstance model, mkInitialState takes List (CardName × Nat)
+-/
+
+import StSVerify.Engine
+import StSVerify.CardDB
+
+open CardName Action
+
+namespace DemoSilent5Card
+
+-- ============================================================
+-- Card deck: (CardName, count)
+-- IDs assigned sequentially: PP1=0, PP2=1, RP1=2, RP2=3, NP=4
+-- ============================================================
+
+def allCards : List (CardName × Nat) := [(PreparedPlus, 2), (ReflexPlus, 2), (NeutralizePlus, 1)]
+def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
+
+-- ============================================================
+-- Traces
+-- ============================================================
+
+-- Setup: draw 5, play Neutralize, play Prepared#1, draw/discard cycle
+def setupTrace : List Action := [
+  .draw 0, .draw 1, .draw 2, .draw 3, .draw 4,
+  .play 4,                -- Neutralize+: 4 dmg, +2 weak -> inUse -> discard
+  .play 0,                -- Prepared+: draw 2, discard 1 -> inUse
+  .draw 4,                -- shuffle discard [N(4)] -> draw, draw N(4)
+  .failDraw,              -- draw pile empty, skip 2nd draw
+  .discard 2,             -- discard Reflex+(2) -> triggers draw 3
+  .draw 2,                -- shuffle discard [R1(2), N(4)] -> draw; but wait, P1(0) also goes to discard
+                          -- Actually: inUse has P1(0). resolveInUse fires when queue empty.
+                          -- After failDraw, queue = [discardChoice]. Not empty yet.
+                          -- After discard R1, queue = [] + 3 draws = [draw,draw,draw]. inUse=[P1(0)].
+                          -- resolveInUse: queue not empty. P1 stays in inUse.
+                          -- shuffle: discardPile = [R1(2), N(4)] -> drawPile. Draw R1(2).
+  .failDraw               -- draw pile empty again, skip remaining draws.
+                          -- After failDraw, queue = []. resolveInUse: P1(0) -> discard.
+]
+
+-- stateA: after setup
+def stateA : GameState := {
+  hand := [{ id := 2, name := ReflexPlus, cost := 0, damage := 0 },
+           { id := 4, name := NeutralizePlus, cost := 0, damage := 4 },
+           { id := 3, name := ReflexPlus, cost := 0, damage := 0 },
+           { id := 1, name := PreparedPlus, cost := 0, damage := 0 }]
+  drawPile := []
+  discardPile := [{ id := 0, name := PreparedPlus, cost := 0, damage := 0 }]
+  exhaustPile := []
+  inUse := []
+  actionQueue := []
+  energy := 3
+  damage := 4
+  block := 0
+  stance := .Neutral
+  orbs := []
+  orbSlots := 3
+  focus := 0
+  enemy := { vulnerable := 0, weak := 2, intending := false }
+  activePowers := []
+  nextId := 5
+  noDraw := false
+  corruptionActive := false
+}
+
+-- Loop: play Neutralize, play Prepared#2, draw/discard cycle
+def loopTrace : List Action := [
+  .play 4,                -- Neutralize+: 4 dmg, +2 weak
+  .play 1,                -- Prepared+#2: draw 2, discard 1
+  .draw 4, .draw 0,       -- shuffle discard [P1(0), N(4)] -> draw, draw N(4), draw P1(0)
+  .discard 2,             -- discard Reflex+(2) -> triggers draw 3
+  .draw 2,                -- shuffle [R1(2)] -> draw, draw R1(2)
+  .failDraw               -- skip remaining draws. P2(1) -> discard via resolveInUse.
+]
+
+-- stateB: after one loop iteration
+def stateB : GameState := {
+  hand := [{ id := 2, name := ReflexPlus, cost := 0, damage := 0 },
+           { id := 0, name := PreparedPlus, cost := 0, damage := 0 },
+           { id := 4, name := NeutralizePlus, cost := 0, damage := 4 },
+           { id := 3, name := ReflexPlus, cost := 0, damage := 0 }]
+  drawPile := []
+  discardPile := [{ id := 1, name := PreparedPlus, cost := 0, damage := 0 }]
+  exhaustPile := []
+  inUse := []
+  actionQueue := []
+  energy := 3
+  damage := 8
+  block := 0
+  stance := .Neutral
+  orbs := []
+  orbSlots := 3
+  focus := 0
+  enemy := { vulnerable := 0, weak := 4, intending := false }
+  activePowers := []
+  nextId := 5
+  noDraw := false
+  corruptionActive := false
+}
+
+-- ============================================================
+-- Verification
+-- ============================================================
+
+theorem setup_ok :
+    execute cardDB (mkInitialState cardDB allCards enemy) setupTrace = some stateA := by
+  native_decide
+
+theorem loop_ok :
+    execute cardDB stateA loopTrace = some stateB := by
+  native_decide
+
+theorem same_mod : sameModAccum stateA stateB = true := by native_decide
+
+theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
+
+theorem silent_5card_infinite : InfiniteCombo cardDB allCards enemy :=
+  ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, same_mod, dealt_dmg⟩
+
+end DemoSilent5Card

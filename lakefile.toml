@@ -1,0 +1,10 @@
+name = "StSVerify"
+version = "0.1.0"
+defaultTargets = ["stsverify"]
+
+[[lean_lib]]
+name = "StSVerify"
+
+[[lean_exe]]
+name = "stsverify"
+root = "Main"
