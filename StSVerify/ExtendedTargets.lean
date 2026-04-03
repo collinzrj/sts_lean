@@ -123,3 +123,27 @@ theorem online_implies_unbounded (cardDB : CardName → CardDef)
     (cards : List (CardName × Nat)) (enemy : EnemyState) :
     OnlineUnboundedDamage cardDB cards enemy → UnboundedDamage cardDB cards enemy := by
   sorry
+
+/-! ## Open question: is the Online → Unbounded gap strict?
+
+  Does oracle foreknowledge strictly help? I.e., is there a card set where
+  the player can deal unbounded damage with foreknowledge but not without?
+
+  If true, this would mean: in the real game (no foreknowledge), some combos
+  that "look infinite" actually aren't — the player needs to know future
+  shuffles to choose the right actions.
+-/
+
+/-- The offline-online gap is strict: there exist cards where UnboundedDamage
+    holds but OnlineUnboundedDamage does not. -/
+def OfflineOnlineGapStrict : Prop :=
+  ∃ (cardDB : CardName → CardDef) (cards : List (CardName × Nat)) (enemy : EnemyState),
+    UnboundedDamage cardDB cards enemy ∧ ¬ OnlineUnboundedDamage cardDB cards enemy
+
+/-- Prove this if oracle foreknowledge strictly helps. -/
+theorem offline_online_gap_strict : OfflineOnlineGapStrict := by
+  sorry
+
+-- OR prove this if oracle foreknowledge does NOT help (mutually exclusive with above):
+-- theorem offline_online_gap_not_strict : ¬ OfflineOnlineGapStrict := by
+--   sorry

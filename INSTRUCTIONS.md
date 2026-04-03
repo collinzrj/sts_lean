@@ -80,8 +80,10 @@ Each template file contains the card list, card reference, and available actions
 
 ## Bonus Challenges
 
-If you complete the main tasks, try these harder problems defined in `StSVerify/ExtendedTargets.lean`:
+If you complete the main tasks, try these harder problems in `StSVerify/ExtendedTargets.lean`:
 
-1. **Prove `GuaranteedInfiniteCombo → RobustInfinite`**: If a combo can loop once back to the same state under any shuffle, show it can be repeated to form a fixed strategy that beats any damage target. (Currently sorry.)
+1. **`guaranteed_implies_robust`**: Prove that `GuaranteedInfiniteCombo → RobustInfinite`. If a combo can loop once back to the same state under any shuffle, show it can be repeated to form a fixed strategy that beats any damage target.
 
-2. **Prove or disprove: `OnlineUnboundedDamage` is strictly stronger than `UnboundedDamage`**: Find a combo (or construct a theoretical example) where the player needs oracle foreknowledge to deal unbounded damage — i.e., no adaptive strategy (blind to future shuffles) suffices, but a trace chosen after seeing the oracle does.
+2. **`online_implies_unbounded`**: Prove that `OnlineUnboundedDamage → UnboundedDamage`. An adaptive strategy tree that works against all oracles can be instantiated with a specific oracle to produce a concrete trace.
+
+3. **`OfflineOnlineGapStrict`**: Prove or disprove that oracle foreknowledge strictly helps. The proposition states `∃ cardDB cards enemy, UnboundedDamage cardDB cards enemy ∧ ¬ OnlineUnboundedDamage cardDB cards enemy`. Either construct a witness or prove its negation.

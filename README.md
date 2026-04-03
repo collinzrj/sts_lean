@@ -126,10 +126,21 @@ generate_templates.py        — 从 combos_v2.jsonl 生成模板文件
 - 未授权的导入
 - L2：`native_decide` 不在主证明体中（仅限引擎辅助引理）
 
+## Benchmark 分发
+
+`sts_benchmark.tar.gz` 包含完整的 benchmark（不含参考解答）。解压后让 LLM agent 阅读 `INSTRUCTIONS.md` 并完成任务即可。
+
+```bash
+tar xzf sts_benchmark.tar.gz -C my_workspace/ && cd my_workspace/
+```
+
+Prompt:
+> Read INSTRUCTIONS.md, then prove all theorems marked `sorry` in `StSVerify/CombosTemplateL1/` and `StSVerify/CombosTemplateL2/`. Verify each proof compiles with `lake build`. If you finish, try the bonus challenges in `StSVerify/ExtendedTargets.lean`.
+
 ## 命令
 
 ```bash
-# 构建并验证所有证明
+# 构建并验证所有证明（含参考解答的完整仓库）
 cd lean_framework && export PATH="$HOME/.elan/bin:$PATH" && lake build
 
 # 验证单个解答

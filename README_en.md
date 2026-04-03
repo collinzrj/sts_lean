@@ -137,10 +137,21 @@ The eval harness checks LLM submissions for:
 - Unauthorized imports
 - L2: `native_decide` not in main proof body (only engine helpers)
 
+## Benchmark Distribution
+
+`sts_benchmark.tar.gz` contains the full benchmark without reference solutions. Extract and let the LLM agent read `INSTRUCTIONS.md` to complete the task.
+
+```bash
+tar xzf sts_benchmark.tar.gz -C my_workspace/ && cd my_workspace/
+```
+
+Prompt:
+> Read INSTRUCTIONS.md, then prove all theorems marked `sorry` in `StSVerify/CombosTemplateL1/` and `StSVerify/CombosTemplateL2/`. Verify each proof compiles with `lake build`. If you finish, try the bonus challenges in `StSVerify/ExtendedTargets.lean`.
+
 ## Commands
 
 ```bash
-# Build and verify all proofs
+# Build and verify all proofs (full repo with reference solutions)
 cd lean_framework && export PATH="$HOME/.elan/bin:$PATH" && lake build
 
 # Verify a single solution
@@ -149,9 +160,6 @@ lake env lean StSVerify/CombosLevel2Solution/ComboDropkickExhaust.lean
 
 # Generate templates from combo data
 python generate_templates.py
-
-# Run LLM eval
-python eval/eval_lean.py --model openai/gpt-5.4 --thinking --parallel 8
 ```
 
 ## Known Limitations
