@@ -15,7 +15,7 @@ import StSVerify.CombosLevel1Solution.ComboStormOfSteel
 import StSVerify.CombosLevel1Solution.ComboStormOfSteel2Prep
 import StSVerify.CombosLevel1Solution.ComboStormOfSteel3Prep
 import StSVerify.CombosLevel1Solution.ComboStormStrike
--- L2: 11/12 proved infinite
+-- L2: 11/12 GuaranteedInfiniteCombo (proved)
 import StSVerify.CombosLevel2Solution.ComboDropkickExhaust
 import StSVerify.CombosLevel2Solution.ComboCorruptionDropkick
 import StSVerify.CombosLevel2Solution.ComboHeelHookExhaust
@@ -27,8 +27,9 @@ import StSVerify.CombosLevel2Solution.ComboMantraDivine
 import StSVerify.CombosLevel2Solution.ComboStandardWatcher
 import StSVerify.CombosLevel2Solution.ComboAcrobaticsTactician
 import StSVerify.CombosLevel2Solution.ComboTantrumFearNoEvil
--- L2: 1/12 sorry (3Prep: 6-card shuffle creates cascading oracle interactions)
--- import StSVerify.CombosLevel2Solution.ComboStormOfSteel3Prep  -- 2 sorry
+-- L2: 1/12 UnboundedDamage OPEN (3Prep: 6-card deck, adversary can strand Reflex,
+--   requires multi-iteration adaptive strategy proof — hardest benchmark challenge)
+-- import StSVerify.CombosLevel2Solution.ComboStormOfSteel3Prep  -- sorry
 
 def main : IO Unit :=
   IO.println "All StS infinite combo proofs verified!"

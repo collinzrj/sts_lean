@@ -752,7 +752,8 @@ def sameModAccum (a b : GameState) : Bool :=
   && a.activePowers == b.activePowers
   && a.noDraw == b.noDraw
   && a.corruptionActive == b.corruptionActive
-  -- damage, block, enemy debuffs, nextId, exhaustPile NOT compared (accumulate harmlessly)
+  && decide (b.energy ≥ a.energy)  -- energy must not decrease (otherwise loop eventually fails)
+  -- damage, block, nextId, exhaustPile, enemy debuffs NOT compared (accumulate harmlessly)
 
 /-- The loop trace dealt damage -/
 def dealtDamage (before after : GameState) : Bool :=
@@ -882,18 +883,22 @@ def executeL2 (cardDB : CardName → CardDef)
     | some (s', shIdx') => executeL2 cardDB oracle shIdx' s' rest
 
 
-/-- Level 2 proof obligation: infinite combo works despite ANY shuffle order. -/
+/-! ## L2 proof target -/
+
+/-- Level 2 proof obligation: the combo has a single-iteration loop that returns the
+    game state to sameModAccum-equivalence, dealing damage each time.
+    Against any valid shuffle oracle, the loop works.
+
+    Extended proof targets (RobustInfinite, UnboundedDamage, OnlineUnboundedDamage)
+    are defined in ExtendedTargets.lean. -/
 def GuaranteedInfiniteCombo (cardDB : CardName → CardDef)
     (cards : List (CardName × Nat)) (enemy : EnemyState) : Prop :=
   ∃ (setupTrace : List Action) (stateA : GameState),
-    -- Setup reaches stateA (lucky draws)
     execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA
-    -- For ANY valid shuffle oracle, player can loop
     ∧ ∀ (oracle : ShuffleOracle),
         validOracle oracle →
         ∃ (loopTrace : List Action) (stateB : GameState) (finalIdx : Nat),
           executeL2 cardDB oracle 0 stateA loopTrace = some (stateB, finalIdx)
-          -- Loop stays within a single turn
           ∧ noEndTurn loopTrace = true
           ∧ sameModAccum stateA stateB = true
           ∧ dealtDamage stateA stateB = true

@@ -11,12 +11,18 @@ Evaluates whether LLMs can formally prove that Slay the Spire card combos loop i
 - Lean verifies via `native_decide`: setup reaches stateA, loop reaches stateB, states match, damage increased
 - Proposition: `InfiniteCombo`
 
-**Level 2 — Guaranteed Loop:** Only the setup is lucky. The loop works despite ANY adversarial shuffle order.
-- Setup uses Level 1 (lucky draws). Loop must handle all shuffles via `ShuffleOracle`.
-- LLM must prove `∀ oracle, validOracle oracle → ∃ loopTrace stateB, ...`
+**Level 2 — Guaranteed against adversarial shuffles.** Only the setup is lucky. The loop must work despite ANY shuffle order, controlled by a `ShuffleOracle`.
 - `native_decide` allowed only for engine computation helpers (individual steps, state comparisons)
 - `native_decide` NOT allowed in main proof body — oracle quantification must use real tactics
-- Proposition: `GuaranteedInfiniteCombo`
+- Three proof targets of decreasing strength:
+
+| Strength | Proposition | Quantifier structure | Meaning |
+|----------|-------------|---------------------|---------|
+| Strongest | `GuaranteedInfiniteCombo` | `∀oracle ∃trace, sameModAccum` | Period-1 loop: exact state recurrence |
+| Medium | `RobustInfinite` | `∀oracle ∃strategy ∀N ∃K, damage > N` | Fixed strategy beats any HP |
+| Weakest | `UnboundedDamage` | `∀oracle ∀N ∃trace, damage > N` | Each HP target gets own trace |
+
+- `RobustInfinite → UnboundedDamage` is proved. `GuaranteedInfiniteCombo → RobustInfinite` is stated (sorry).
 
 ## Structure
 
@@ -31,7 +37,7 @@ StSVerify/
   CombosTemplateL1/          — Level 1 templates with sorry (12 combos)
   CombosTemplateL2/          — Level 2 templates with sorry (12 combos)
   CombosLevel1Solution/      — Level 1 reference solutions (12/12 verified)
-  CombosLevel2Solution/      — Level 2 reference solutions (12/12 verified)
+  CombosLevel2Solution/      — Level 2 reference solutions (11/12 verified, 1 open)
 data/
   combos_v2.jsonl            — Combo definitions (cards, enemy state, effects)
 eval/
@@ -54,12 +60,13 @@ generate_templates.py        — Generates template files from combos_v2.jsonl
 | StandardWatcher | 12 | Watcher | 4 cases (2x2) | ✅ | ✅ |
 | StormOfSteel | 4 | Silent | 12 cases (2x6) | ✅ | ✅ |
 | StormOfSteel2Prep | 5 | Silent | 48 cases (24x2) | ✅ | ✅ |
-| StormOfSteel3Prep | 6 | Silent | 720 cases (120x6) | ✅ | ✅ |
-| StormStrike | 5 | Silent | Adversary strands Prep | ✅ | ❌ |
+| StormOfSteel3Prep | 6 | Silent | 720+ cases, cascading shuffles | ✅ | ⬚ |
+| StormStrike | 5 | Silent | Adversary strands Prep | ✅ | ✅ |
 | TantrumFearNoEvil | 11 | Watcher | 48 cases (24x2) | ✅ | ✅ |
 
 - **L1**: 12/12 proved (single-turn loops, no endTurn)
-- **L2**: 11/12 proved infinite, 1 (StormStrike) not L2-infinite (adversary hides the only Prep), negation proof in progress (sorry)
+- **L2**: 11/12 `GuaranteedInfiniteCombo` proved
+   - StormOfSteel3Prep: NOT `GuaranteedInfiniteCombo` (6-card deck, adversary can strand Reflex breaking the period-1 loop). Conjectured `UnboundedDamage` (player can adaptively deal damage using Preps to recover). **OPEN — hardest benchmark challenge, no reference solution** — ⬚
 
 ## L2 Proof Techniques
 
@@ -72,53 +79,47 @@ The harder combos (StormStrike, TantrumFearNoEvil, StormOfSteel 2/3Prep) use the
 
 Simpler combos use direct step-chain proofs (`exL2_cons` + `perm_singleton_eq`/`perm_3_cases`).
 
-### Example: Storm of Steel + 3 Prepared+ (6 cards)
+### Hardest Challenge: Storm of Steel + 3 Prepared+ (6 cards)
 
 **Combo**: Storm of Steel+ + Tactician+ + Reflex+ + 3x Prepared+ (6 cards)
 
-**Challenge**: 6 cards, 2 shuffle points. Oracle 0 shuffles 5 cards (120 perms), Oracle 1 shuffles 3 cards (6 perms), totaling 720 combinations.
+**Why it's hard**: Unlike all other combos, the 6-card deck creates cascading oracle interactions that prevent a simple period-1 loop:
+- After one loop: Reflex's draw 3 draws 2 of 3 from a sub-shuffle, stranding 1 card in drawPile
+- State goes from (hand=6, draw=0) to (hand=5, draw=1) — `sameModAccum` fails
+- The adversary can choose to strand Reflex itself, killing the draw-3 trigger in the next iteration
+- When Reflex is stranded with empty discardPile, Prepared+ can't draw it back (draw fails)
 
-**Anchor state**: hand = {SoS, Tact, Reflex, Prep2, Prep3} (5 cards), discardPile = {Prep1}, energy = 6
+**Proof target**: `UnboundedDamage` (not `GuaranteedInfiniteCombo`)
 
-**Loop strategy** (single turn, no endTurn):
+**Conjectured strategy**: The player can adaptively deal unbounded damage by:
+1. Keeping Reflex in hand (don't discard via Prep) when the oracle is adversarial
+2. Playing SoS with Reflex in hand → stormOfSteel discards Reflex → draw 3 trigger
+3. Using the 3 Preps to cycle cards and recover SoS for the next damage cycle
+4. Each SoS play creates at least 1 Shiv = 4 damage minimum
 
-1. **Play Storm of Steel+** (1E) → discard 4 cards (Tact, Reflex, Prep2, Prep3), create 4 Shivs. Tact triggers +2E, Reflex triggers draw 3.
-2. **Draw 3 from 5-card shuffle** (Oracle 0) — pile = {Tact, Reflex, Prep1, Prep2, Prep3}. **Pigeonhole: 3 Preps among 5 cards, drawing 3 guarantees at least 1 Prep.** 2 cards stranded in drawPile.
-3. **Play 4 Shivs** (0E) → 16 damage, Shivs exhaust.
-4. **Play a Prepared+** (0E) → draw 2 (retrieves the 2 stranded cards from drawPile), discard 2 (discard Tact + Reflex). Tact triggers +2E, Reflex triggers draw 3.
-5. **Draw 3 from 3-card shuffle** (Oracle 1) — pile = {Reflex, Tact, SoS}. **All 3 drawn, oracle has no control.**
-6. **Back to anchor state**: hand = {SoS, Tact, Reflex, Prep, Prep}, disc = {Prep}
+**Status**: OPEN — no reference solution. This requires proving a complex multi-iteration adaptive strategy, beyond what single-loop `native_decide` can verify.
 
-**Why it works for ALL shuffles (mathematical argument)**:
-- **Step 2 (pigeonhole)**: 5 cards with 3 Preps → draw 3 always includes at least 1 Prep, guaranteeing step 4 has a Prep to play.
-- **Step 4 (Prep recovery)**: drawPile has exactly 2 stranded cards. Prep draws both back. Tact and Reflex are always in hand (they're not Preps, so the played Prep didn't remove them).
-- **Step 5 (full draw)**: pile has exactly 3 cards = draw count. All recovered, oracle irrelevant.
-- **`sameModAccum` interchangeability**: all Prep+ instances have identical (name, cost, damage). Regardless of which Prep is in which pile, sorted comparison matches.
+### Example (proved): Storm of Steel + 2 Prepared+ (5 cards)
 
-**Proof structure** (4 layers):
-
-```
-                    ┌─────────────────────────────────┐
-                    │   Main theorem (no native_decide)│
-                    │   ∀ oracle → ∃ trace, loop ok    │
-                    └──────────┬──────────────────────┘
-                               │ uses
-                    ┌──────────▼──────────────────────┐
-                    │   case_handler                   │
-                    │   combines bridge + verification  │
-                    └──────┬────────────┬─────────────┘
-                           │            │
-              ┌────────────▼──┐   ┌─────▼──────────────────┐
-              │ drawCondBool  │   │ verifyAll = true        │
-              │ _bridge       │   │ (native_decide:         │
-              │ (by induction)│   │  720 perms all pass)    │
-              └───────────────┘   └────────────────────────┘
-```
+The 2-Prep variant IS `GuaranteedInfiniteCombo`. With 5 cards and 2 shuffle points (Oracle 0: 120 perms, Oracle 1: 6 perms = 720 total), the drawCondBool bridge pattern proves the loop for all cases:
 
 1. **Computational verification** (`verifyAll_ok`): `native_decide` checks all 720 permutation pairs
 2. **Oracle bridge** (`drawCondBool_bridge`): proved by induction on the trace using `stepL2_oracle_cond`
 3. **Permutation completeness**: mathematical case analysis proves `List.Perm l pile → l ∈ allPerms` (Nodup + element membership)
-4. **Main theorem** (`loop_l2`): introduces oracle, uses `permsOf_complete` to find oracle outputs in enumeration, applies `case_handler`. **No `native_decide`**
+4. **Main theorem**: introduces oracle, combines bridge with verification. **No `native_decide` in main proof body**
+
+## Open Questions
+
+The formalization surfaced several open questions (extended definitions in `ExtendedTargets.lean`):
+
+1. **Can [Storm of Steel+, Tactician+, Reflex+, Prepared+×3] deal unbounded damage?**
+   With 6 cards, the adversary can strand Reflex at the bottom of the draw pile, breaking the "draw 3" trigger and preventing a period-1 loop. But the player may be able to adapt — keeping Reflex in hand and using the 3 Prepared+ copies to cycle the deck. No reference solution.
+
+2. **Does oracle foreknowledge strictly help the player?**
+   Our `UnboundedDamage` lets the player see all future shuffle results before choosing actions (offline optimization). `OnlineUnboundedDamage` restricts the player to decisions based only on past shuffle results (online strategy, matching the real game). Is there a combo where the former holds but the latter doesn't?
+
+3. **Period-1 loop → fixed strategy (`GuaranteedInfiniteCombo → RobustInfinite`)**
+   If a combo can loop once back to the same state under any shuffle, can it be repeated N times to form a fixed infinite action sequence? Intuitively obvious, but the formal proof requires a simulation theorem showing sameModAccum-equivalent states produce identical engine behavior. Currently sorry.
 
 ## Soundness
 
