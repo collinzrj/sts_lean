@@ -43,20 +43,23 @@ generate_templates.py        — Generates template files from combos_v2.jsonl
 
 ## Combos (12)
 
-| Combo | Cards | Character | Shuffle Complexity |
-|-------|-------|-----------|-------------------|
-| DropkickExhaust | 11 | Ironclad | Singleton (deterministic) |
-| CorruptionDropkick | 13 | Ironclad | Singleton (deterministic) |
-| HeelHookExhaust | 10 | Silent | Singleton (deterministic) |
-| StreamlineHologram | 11 | Defect | No shuffle in loop |
-| AcrobaticsTactician | 12 | Silent | 4 shuffle points |
-| MantraDivine | 13 | Watcher | 6 permutations |
-| StandardWatcher | 12 | Watcher | 4 cases (2×2) |
-| StormOfSteel | 4 | Silent | 6 permutations |
-| StormOfSteel2Prep | 5 | Silent | 3 shuffle points |
-| StormOfSteel3Prep | 6 | Silent | 3 shuffle points |
-| StormStrike | 5 | Silent | 576 cases (24×24) |
-| TantrumFearNoEvil | 11 | Watcher | 48 cases (24×2) |
+| Combo | Cards | Character | Shuffle Complexity | L1 | L2 |
+|-------|-------|-----------|-------------------|----|----|
+| DropkickExhaust | 11 | Ironclad | Singleton (deterministic) | ✅ | ✅ |
+| CorruptionDropkick | 13 | Ironclad | Singleton (deterministic) | ✅ | ✅ |
+| HeelHookExhaust | 10 | Silent | Singleton (deterministic) | ✅ | ✅ |
+| StreamlineHologram | 11 | Defect | No shuffle in loop | ✅ | ✅ |
+| AcrobaticsTactician | 12 | Silent | 4 shuffle points | ✅ | ✅ |
+| MantraDivine | 13 | Watcher | 6 permutations | ✅ | ✅ |
+| StandardWatcher | 12 | Watcher | 4 cases (2x2) | ✅ | ✅ |
+| StormOfSteel | 4 | Silent | 12 cases (2x6) | ✅ | ✅ |
+| StormOfSteel2Prep | 5 | Silent | 48 cases (24x2) | ✅ | ✅ |
+| StormOfSteel3Prep | 6 | Silent | 720 cases (120x6) | ✅ | ✅ |
+| StormStrike | 5 | Silent | Adversary strands Prep | ✅ | ❌ |
+| TantrumFearNoEvil | 11 | Watcher | 48 cases (24x2) | ✅ | ✅ |
+
+- **L1**: 12/12 proved (single-turn loops, no endTurn)
+- **L2**: 11/12 proved infinite, 1 (StormStrike) not L2-infinite (adversary hides the only Prep), negation proof in progress (sorry)
 
 ## L2 Proof Techniques
 
@@ -68,6 +71,54 @@ The harder combos (StormStrike, TantrumFearNoEvil, StormOfSteel 2/3Prep) use the
 4. Main theorem combines the bridge with permutation completeness
 
 Simpler combos use direct step-chain proofs (`exL2_cons` + `perm_singleton_eq`/`perm_3_cases`).
+
+### Example: Storm of Steel + 3 Prepared+ (6 cards)
+
+**Combo**: Storm of Steel+ + Tactician+ + Reflex+ + 3x Prepared+ (6 cards)
+
+**Challenge**: 6 cards, 2 shuffle points. Oracle 0 shuffles 5 cards (120 perms), Oracle 1 shuffles 3 cards (6 perms), totaling 720 combinations.
+
+**Anchor state**: hand = {SoS, Tact, Reflex, Prep2, Prep3} (5 cards), discardPile = {Prep1}, energy = 6
+
+**Loop strategy** (single turn, no endTurn):
+
+1. **Play Storm of Steel+** (1E) → discard 4 cards (Tact, Reflex, Prep2, Prep3), create 4 Shivs. Tact triggers +2E, Reflex triggers draw 3.
+2. **Draw 3 from 5-card shuffle** (Oracle 0) — pile = {Tact, Reflex, Prep1, Prep2, Prep3}. **Pigeonhole: 3 Preps among 5 cards, drawing 3 guarantees at least 1 Prep.** 2 cards stranded in drawPile.
+3. **Play 4 Shivs** (0E) → 16 damage, Shivs exhaust.
+4. **Play a Prepared+** (0E) → draw 2 (retrieves the 2 stranded cards from drawPile), discard 2 (discard Tact + Reflex). Tact triggers +2E, Reflex triggers draw 3.
+5. **Draw 3 from 3-card shuffle** (Oracle 1) — pile = {Reflex, Tact, SoS}. **All 3 drawn, oracle has no control.**
+6. **Back to anchor state**: hand = {SoS, Tact, Reflex, Prep, Prep}, disc = {Prep}
+
+**Why it works for ALL shuffles (mathematical argument)**:
+- **Step 2 (pigeonhole)**: 5 cards with 3 Preps → draw 3 always includes at least 1 Prep, guaranteeing step 4 has a Prep to play.
+- **Step 4 (Prep recovery)**: drawPile has exactly 2 stranded cards. Prep draws both back. Tact and Reflex are always in hand (they're not Preps, so the played Prep didn't remove them).
+- **Step 5 (full draw)**: pile has exactly 3 cards = draw count. All recovered, oracle irrelevant.
+- **`sameModAccum` interchangeability**: all Prep+ instances have identical (name, cost, damage). Regardless of which Prep is in which pile, sorted comparison matches.
+
+**Proof structure** (4 layers):
+
+```
+                    ┌─────────────────────────────────┐
+                    │   Main theorem (no native_decide)│
+                    │   ∀ oracle → ∃ trace, loop ok    │
+                    └──────────┬──────────────────────┘
+                               │ uses
+                    ┌──────────▼──────────────────────┐
+                    │   case_handler                   │
+                    │   combines bridge + verification  │
+                    └──────┬────────────┬─────────────┘
+                           │            │
+              ┌────────────▼──┐   ┌─────▼──────────────────┐
+              │ drawCondBool  │   │ verifyAll = true        │
+              │ _bridge       │   │ (native_decide:         │
+              │ (by induction)│   │  720 perms all pass)    │
+              └───────────────┘   └────────────────────────┘
+```
+
+1. **Computational verification** (`verifyAll_ok`): `native_decide` checks all 720 permutation pairs
+2. **Oracle bridge** (`drawCondBool_bridge`): proved by induction on the trace using `stepL2_oracle_cond`
+3. **Permutation completeness**: mathematical case analysis proves `List.Perm l pile → l ∈ allPerms` (Nodup + element membership)
+4. **Main theorem** (`loop_l2`): introduces oracle, uses `permsOf_complete` to find oracle outputs in enumeration, applies `case_handler`. **No `native_decide`**
 
 ## Soundness
 

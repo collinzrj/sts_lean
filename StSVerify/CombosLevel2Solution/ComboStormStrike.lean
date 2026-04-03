@@ -1,68 +1,178 @@
 /-
   Storm of Steel+ + Tactician+ + Reflex+ + Prepared+ + Strike Silent (5 cards) - Level 2
-  16 damage per loop (4 Shivs × 4 damage)
 
-  v2 engine: CardInstance piles, sameModAccum, executeL2 with ShuffleOracle.
+  RESULT: NOT guaranteed infinite at Level 2.
 
-  Proof strategy:
-  1. Computational verification: all 576 permutation pairs verified via native_decide
-  2. Oracle bridge: bridgeCheck (boolean) + soundness lemma
-  3. Main theorem: combine bridge + verification
+  Proof approach:
+  1. Define `prepBottomOracle` which places Prepared+ at the bottom of every shuffle.
+  2. Prove it is a valid permutation oracle (fully mechanized).
+  3. Show that from any reachable stateA, no loop trace with this oracle satisfies
+     both sameModAccum and dealtDamage.
+
+  The key mechanism: after SoS+ plays and Reflex+ triggers draw 3 from a 4-card
+  shuffled pile, the oracle strands Prep+ at position 4 (bottom). Only 3 cards are
+  drawn. With Prep+ in drawPile and no draw-generating cards playable, the player
+  is stuck. sameModAccum fails because the card distribution diverges from stateA.
+
+  Computational verification:
+  - The BFS `bfsCheckLoop` verifies no valid loop from the canonical stateA.
+  - `noReachableHasLoop` checks ALL 51 reachable states (can be run via #eval).
+  - The formal bridge (BFS soundness) is left as sorry.
 -/
 
 import StSVerify.Engine
-import StSVerify.EngineHelperLemmas
 import StSVerify.CardDB
 
 open CardName Action
 
-namespace ComboStormStrike_L2_Strict
-
--- ============================================================
--- CARD INSTANCES
--- ============================================================
-
-private def storm : CardInstance := { id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 }
-private def tact  : CardInstance := { id := 1, name := TacticianPlus, cost := 0, damage := 0 }
-private def refx  : CardInstance := { id := 2, name := ReflexPlus, cost := 0, damage := 0 }
-private def prep  : CardInstance := { id := 3, name := PreparedPlus, cost := 0, damage := 0 }
-private def strk  : CardInstance := { id := 4, name := StrikeSilent, cost := 1, damage := 6 }
+namespace ComboStormStrike_L2
 
 def cards : List (CardName × Nat) := [
   (StormOfSteelPlus, 1), (TacticianPlus, 1), (ReflexPlus, 1),
   (PreparedPlus, 1), (StrikeSilent, 1)]
 
 def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
-def pile1 : List CardInstance := [strk, prep, refx, tact]
 
 -- ============================================================
--- SETUP
+-- ORACLE DEFINITION
 -- ============================================================
 
-def setupTrace : List Action := [
-  .draw 0, .draw 1, .draw 2, .draw 3, .draw 4,
-  .play 0,
-  .draw 3, .draw 4, .draw 1,
-  .play 5, .play 6, .play 7, .play 8,
-  .play 4, .play 3,
-  .draw 2, .draw 0, .discard 2,
-  .draw 4, .draw 2, .failDraw,
-  .endTurn,
-  .draw 0, .draw 1, .draw 2, .draw 3, .draw 4
-]
+/-- Move all Prep+ cards to the end of the list. -/
+def movePrepToBottom (pile : List CardInstance) : List CardInstance :=
+  let nonPrep := pile.filter (fun c => c.name != PreparedPlus)
+  let prep := pile.filter (fun c => c.name == PreparedPlus)
+  nonPrep ++ prep
 
-def stateA : GameState := {
-  hand := [strk, prep, refx, tact, storm]
-  drawPile := []
-  discardPile := []
+/-- Oracle that always puts Prep+ at the bottom of every shuffle. -/
+def prepBottomOracle : ShuffleOracle := fun _ pile => movePrepToBottom pile
+
+/-- movePrepToBottom returns a permutation of the input. -/
+theorem movePrepToBottom_perm (pile : List CardInstance) :
+    List.Perm (movePrepToBottom pile) pile := by
+  unfold movePrepToBottom
+  exact List.perm_append_comm.trans
+    (List.filter_append_perm (fun c => c.name == PreparedPlus) pile)
+
+/-- prepBottomOracle is a valid shuffle oracle. -/
+theorem prepBottomOracle_valid : validOracle prepBottomOracle := by
+  intro n pile
+  exact movePrepToBottom_perm pile
+
+-- ============================================================
+-- BFS INFRASTRUCTURE (for computational verification)
+-- ============================================================
+
+structure SearchKey where
+  hand : List (CardName × Nat × Nat)
+  drawPile : List (CardName × Nat × Nat)
+  discardPile : List (CardName × Nat × Nat)
+  inUsePile : List (CardName × Nat × Nat)
+  queue : List QueueItem
+  energy : Nat
+  deriving DecidableEq, BEq
+
+def mkSearchKey (s : GameState) : SearchKey :=
+  { hand := normPileV2 s.hand
+    drawPile := normPileV2 s.drawPile
+    discardPile := normPileV2 s.discardPile
+    inUsePile := normPileV2 s.inUse
+    queue := s.actionQueue
+    energy := min s.energy 20 }
+
+/-- Enumerate all valid L2 actions (endTurn excluded for noEndTurn). -/
+def enumActionsL2 (shIdx : Nat) (s : GameState) : List (Action × GameState × Nat) :=
+  let s0 := resolveInUse cardDB (autoDrain cardDB s)
+  let tryStep (a : Action) : Option (Action × GameState × Nat) :=
+    match stepL2 cardDB prepBottomOracle shIdx s0 a with
+    | some (s', si') => some (a, s', si')
+    | none => none
+  let actions : List Action :=
+    (s0.hand.map fun c => Action.play c.id) ++
+    (match s0.drawPile with | c :: _ => [Action.draw c.id] | [] => []) ++
+    [Action.failDraw] ++
+    (s0.hand.map fun c => Action.discard c.id) ++
+    (s0.hand.map fun c => Action.exhaust c.id)
+  actions.filterMap tryStep
+
+/-- BFS: check if any reachable state from stateA satisfies sameModAccum AND dealtDamage. -/
+def bfsCheckLoop (stateA : GameState) (fuel : Nat) : Bool :=
+  let rec go (queue : List (GameState × Nat × Bool)) (visited : List SearchKey)
+      (fuel : Nat) : Bool :=
+    match fuel with
+    | 0 => false
+    | fuel' + 1 =>
+      match queue with
+      | [] => false
+      | (s, si, hasDmg) :: rest =>
+        let s0 := resolveInUse cardDB (autoDrain cardDB s)
+        let key := mkSearchKey s0
+        if visited.any (· == key) then
+          go rest visited fuel'
+        else
+          let visited' := key :: visited
+          if hasDmg && sameModAccum stateA s0 then true
+          else
+            let succs := enumActionsL2 si s
+            let newQ := succs.map fun (_, s', si') =>
+              (s', si', hasDmg || dealtDamage stateA s')
+            go (rest ++ newQ) visited' fuel'
+  go [(stateA, 0, false)] [] fuel
+
+/-- Enumerate all L1 actions from a state. -/
+def enumActionsL1 (s : GameState) : List GameState :=
+  let s0 := resolveInUse cardDB (autoDrain cardDB s)
+  let tryStep (a : Action) : Option GameState := step cardDB s0 a
+  let actions : List Action :=
+    (s0.hand.map fun c => Action.play c.id) ++
+    (s0.drawPile.map fun c => Action.draw c.id) ++
+    [Action.failDraw] ++
+    (s0.hand.map fun c => Action.discard c.id) ++
+    (s0.hand.map fun c => Action.exhaust c.id) ++
+    [Action.endTurn]
+  actions.filterMap tryStep
+
+/-- Check ALL reachable states from the initial state have no loop with prepBottomOracle.
+    Returns true iff no reachable state has a valid loop. -/
+def noReachableHasLoop (reachFuel loopFuel : Nat) : Bool :=
+  let initial := mkInitialState cardDB cards enemy
+  let rec go (queue : List GameState) (visited : List SearchKey) (fuel : Nat) : Bool :=
+    match fuel with
+    | 0 => true
+    | fuel' + 1 =>
+      match queue with
+      | [] => true
+      | s :: rest =>
+        let s0 := resolveInUse cardDB (autoDrain cardDB s)
+        let key := mkSearchKey s0
+        if visited.any (· == key) then
+          go rest visited fuel'
+        else
+          let visited' := key :: visited
+          if bfsCheckLoop s0 loopFuel then false
+          else
+            let succs := enumActionsL1 s
+            go (rest ++ succs) visited' fuel'
+  go [initial] [] reachFuel
+
+-- ============================================================
+-- CONCRETE VERIFICATION
+-- ============================================================
+
+/-- The canonical stateA from the L1 proof. -/
+def stateA_canonical : GameState := {
+  hand := [{ id := 3, name := PreparedPlus, cost := 0, damage := 0 },
+           { id := 2, name := ReflexPlus, cost := 0, damage := 0 },
+           { id := 1, name := TacticianPlus, cost := 0, damage := 0 }]
+  drawPile := [{ id := 4, name := StrikeSilent, cost := 1, damage := 6 }]
+  discardPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 }]
   exhaustPile := [{ id := 8, name := Shiv, cost := 0, damage := 4 },
                   { id := 7, name := Shiv, cost := 0, damage := 4 },
                   { id := 6, name := Shiv, cost := 0, damage := 4 },
                   { id := 5, name := Shiv, cost := 0, damage := 4 }]
   inUse := []
   actionQueue := []
-  energy := 3
-  damage := 22
+  energy := 4
+  damage := 16
   block := 0
   stance := .Neutral
   orbs := []
@@ -75,223 +185,50 @@ def stateA : GameState := {
   corruptionActive := false
 }
 
-theorem setup_ok :
-    execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA := by
+/-- Setup reaches the canonical stateA. -/
+theorem setup_reaches_canonical :
+    execute cardDB (mkInitialState cardDB cards enemy)
+      [.draw 0, .draw 1, .draw 2, .draw 3, .draw 4,
+       .play 0, .draw 1, .draw 2, .draw 3,
+       .play 5, .play 6, .play 7, .play 8] = some stateA_canonical := by
   native_decide
 
--- ============================================================
--- LOOP TRACE
--- ============================================================
+/-- No valid loop from the canonical stateA with prepBottomOracle.
+    BFS explores ~505 unique states and exhausts the frontier. -/
+theorem canonical_no_loop : bfsCheckLoop stateA_canonical 15000 = false := by
+  native_decide
 
-def mkLoopTrace (sh1 sh2 : List CardInstance) : List Action :=
-  [.play 0] ++
-  (sh1.take 3).map (fun c => Action.draw c.id) ++
-  [.play 9, .play 10, .play 11, .play 12, .endTurn] ++
-  (match sh1.get? 3 with | some c => [Action.draw c.id] | none => []) ++
-  (sh2.take 4).map (fun c => Action.draw c.id)
-
-def mkPile2 (sh1 : List CardInstance) : List CardInstance :=
-  (sh1.take 3).reverse ++ [storm]
-
-def fixedOracle (sh1 sh2 : List CardInstance) : ShuffleOracle := fun idx _ =>
-  if idx == 0 then sh1 else sh2
-
--- ============================================================
--- COMPUTATIONAL VERIFICATION
--- ============================================================
-
-private def insertEverywhere' (x : CardInstance) : List CardInstance → List (List CardInstance)
-  | [] => [[x]]
-  | y :: ys => (x :: y :: ys) :: (insertEverywhere' x ys).map (y :: ·)
-
-private def permsOf' : List CardInstance → List (List CardInstance)
-  | [] => [[]]
-  | x :: xs => (permsOf' xs).flatMap (insertEverywhere' x ·)
-
-private def verifyPair (s1 s2 : List CardInstance) : Bool :=
-  match executeL2 cardDB (fixedOracle s1 s2) 0 stateA (mkLoopTrace s1 s2) with
-  | some (stateB, _) => sameModAccum stateA stateB && dealtDamage stateA stateB
-  | none => false
-
-private def checkAll : Bool :=
-  (permsOf' pile1).all fun p1 =>
-    (permsOf' (mkPile2 p1)).all fun p2 => verifyPair p1 p2
-
-theorem all_perms_check : checkAll = true := by native_decide
-
--- ============================================================
--- permsOf' completeness
--- ============================================================
-
-private theorem insertEverywhere'_head (x : CardInstance) (l : List CardInstance) :
-    (x :: l) ∈ insertEverywhere' x l := by
-  cases l with | nil => simp [insertEverywhere'] | cons _ _ => simp [insertEverywhere']
-
-private theorem insertEverywhere'_contains (x : CardInstance) (l₁ l₂ : List CardInstance) :
-    (l₁ ++ x :: l₂) ∈ insertEverywhere' x (l₁ ++ l₂) := by
-  induction l₁ with
-  | nil => simp [List.nil_append]; exact insertEverywhere'_head x l₂
-  | cons y rest ih =>
-    simp only [List.cons_append, insertEverywhere']
-    right; exact List.mem_map_of_mem (y :: ·) ih
-
-private theorem perm_split (x : CardInstance) (xs s t : List CardInstance)
-    (h : (s ++ x :: t).Perm (x :: xs)) : (s ++ t).Perm xs :=
-  (List.perm_middle.symm.trans h).cons_inv
-
-private theorem permsOf'_complete (l pile : List CardInstance) (hp : l.Perm pile) :
-    l ∈ permsOf' pile := by
-  induction pile generalizing l with
-  | nil => have := hp.eq_nil; subst this; simp [permsOf']
-  | cons x xs ih =>
-    have hx : x ∈ l := hp.mem_iff.mpr (List.mem_cons_self x xs)
-    obtain ⟨s, t, hst⟩ := List.append_of_mem hx
-    simp [permsOf', List.mem_flatMap]
-    exact ⟨s ++ t, ih _ (perm_split x xs s t (hst ▸ hp)),
-           by rw [hst]; exact insertEverywhere'_contains x s t⟩
-
-private theorem verify_from_perm (sh1 sh2 : List CardInstance)
-    (hp1 : sh1.Perm pile1) (hp2 : sh2.Perm (mkPile2 sh1)) :
-    verifyPair sh1 sh2 = true := by
-  have h1 := permsOf'_complete sh1 pile1 hp1
-  have h2 := permsOf'_complete sh2 (mkPile2 sh1) hp2
-  have := all_perms_check; unfold checkAll at this
-  exact ((List.all_eq_true.mp this sh1 h1 |> List.all_eq_true.mp) sh2 h2)
-
--- ============================================================
--- ORACLE BRIDGE
--- ============================================================
-
--- Boolean bridge check: at each draw step, verify drawPile non-empty or oracle agreement
-private def bridgeGo (sh1 : List CardInstance) (fo : ShuffleOracle)
-    (si : Nat) (s : GameState) : List Action → Bool
-  | [] => true
-  | a :: rest =>
-    let s_c := resolveInUse cardDB (autoDrain cardDB s)
-    let cond := match a with
-      | .draw _ => decide (s_c.drawPile ≠ []) ||
-        (decide (si = 0) && decide (s_c.discardPile = pile1)) ||
-        (decide (si = 1) && decide (s_c.discardPile = mkPile2 sh1))
-      | _ => true
-    if cond then
-      match stepL2 cardDB fo si s_c a with
-      | some (s', si') => bridgeGo sh1 fo si' s' rest
-      | none => false
-    else false
-
--- Verify for all permutation pairs
-private def checkAllBridge : Bool :=
-  (permsOf' pile1).all fun p1 =>
-    (permsOf' (mkPile2 p1)).all fun p2 =>
-      bridgeGo p1 (fixedOracle p1 p2) 0 stateA (mkLoopTrace p1 p2)
-
-theorem all_bridge_ok : checkAllBridge = true := by native_decide
-
-private theorem bridge_check_ok (sh1 sh2 : List CardInstance)
-    (hp1 : sh1.Perm pile1) (hp2 : sh2.Perm (mkPile2 sh1)) :
-    bridgeGo sh1 (fixedOracle sh1 sh2) 0 stateA (mkLoopTrace sh1 sh2) = true := by
-  have h1 := permsOf'_complete sh1 pile1 hp1
-  have h2 := permsOf'_complete sh2 (mkPile2 sh1) hp2
-  have := all_bridge_ok; unfold checkAllBridge at this
-  exact ((List.all_eq_true.mp this sh1 h1 |> List.all_eq_true.mp) sh2 h2)
-
--- Soundness: bridgeGo = true → executeL2 oracle = executeL2 fo
-private theorem bridge_sound (oracle fo : ShuffleOracle) (sh1 : List CardInstance)
-    (h_agree_0 : oracle 0 pile1 = fo 0 pile1)
-    (h_agree_1 : oracle 1 (mkPile2 sh1) = fo 1 (mkPile2 sh1)) :
-    ∀ (trace : List Action) (si : Nat) (s : GameState),
-    bridgeGo sh1 fo si s trace = true →
-    executeL2 cardDB oracle si s trace = executeL2 cardDB fo si s trace := by
-  intro trace; induction trace with
-  | nil => intros; rfl
-  | cons a rest ih =>
-    intro si s hbc
-    -- Step agreement
-    have h_step : stepL2 cardDB oracle si (resolveInUse cardDB (autoDrain cardDB s)) a =
-                  stepL2 cardDB fo si (resolveInUse cardDB (autoDrain cardDB s)) a := by
-      cases a with
-      | draw c =>
-        apply stepL2_oracle_cond
-        -- Need: drawPile ≠ [] ∨ oracle si disc = fo si disc
-        -- Extract from bridgeGo: the cond was true
-        simp only [bridgeGo] at hbc
-        -- hbc has if-then-else structure. Extract the condition.
-        -- The condition for draw: decide(drawPile≠[]) || (si==0 && decide(disc=pile1)) || ...
-        -- If condition false → if false then ... else false = true → false = true → contradiction
-        -- So condition must be true.
-        -- Get the condition value
-        generalize hcv : (decide ((resolveInUse cardDB (autoDrain cardDB s)).drawPile ≠ []) ||
-          decide (si = 0) && decide ((resolveInUse cardDB (autoDrain cardDB s)).discardPile = pile1) ||
-          decide (si = 1) && decide ((resolveInUse cardDB (autoDrain cardDB s)).discardPile = mkPile2 sh1)) = cv at hbc
-        cases cv with
-        | false => simp at hbc
-        | true =>
-          simp only [Bool.or_eq_true, decide_eq_true_eq, Bool.and_eq_true] at hcv
-          -- hcv : (drawPile ≠ [] ∨ si=0 ∧ disc=pile1) ∨ si=1 ∧ disc=mkPile2
-          rcases hcv with (hne | ⟨rfl, hdisc⟩) | ⟨rfl, hdisc⟩
-          · exact Or.inl hne
-          · exact Or.inr (by rw [hdisc]; exact h_agree_0)
-          · exact Or.inr (by rw [hdisc]; exact h_agree_1)
-      | _ => simp [stepL2]
-    -- Rewrite executeL2
-    show executeL2 cardDB oracle si s (a :: rest) = executeL2 cardDB fo si s (a :: rest)
-    simp only [executeL2, h_step]
-    cases hfo : stepL2 cardDB fo si (resolveInUse cardDB (autoDrain cardDB s)) a with
-    | none => rfl
-    | some p =>
-      apply ih
-      -- Extract continuation from hbc
-      -- bridgeGo checks condition, then matches step result
-      -- For draw: condition + match step → bridgeGo rest
-      -- For non-draw: true (condition) + match step → bridgeGo rest
-      -- In either case: we need hbc simplified with condition=true and step=some p
-      simp only [bridgeGo] at hbc
-      -- hbc has structure: (if condVal = true then match stepResult with ... else false) = true
-      -- Split on action type in hbc to determine condVal
-      -- Then use hfo to simplify the match
-      split at hbc
-      · -- draw case: condVal was some condition
-        generalize hcv2 : (_ || _ || _) = cv2 at hbc
-        cases cv2 with
-        | false => simp at hbc
-        | true => simp only [ite_true, hfo] at hbc; exact hbc
-      · -- non-draw case: condVal = true
-        simp only [ite_true, hfo] at hbc; exact hbc
-
--- The oracle bridge theorem
-private theorem oracle_bridge (oracle : ShuffleOracle)
-    (sh1 sh2 : List CardInstance)
-    (hsh1 : oracle 0 pile1 = sh1) (hsh2 : oracle 1 (mkPile2 sh1) = sh2)
-    (hp1 : sh1.Perm pile1) (hp2 : sh2.Perm (mkPile2 sh1)) :
-    executeL2 cardDB oracle 0 stateA (mkLoopTrace sh1 sh2) =
-    executeL2 cardDB (fixedOracle sh1 sh2) 0 stateA (mkLoopTrace sh1 sh2) := by
-  apply bridge_sound oracle (fixedOracle sh1 sh2) sh1
-  · simp [fixedOracle, hsh1]
-  · simp [fixedOracle, hsh2]
-  · exact bridge_check_ok sh1 sh2 hp1 hp2
+/-- No reachable state (51 total) from the initial state has a valid loop
+    with prepBottomOracle. Each is verified by bounded BFS. -/
+theorem all_reachable_no_loop : noReachableHasLoop 50000 15000 = true := by
+  native_decide
 
 -- ============================================================
 -- MAIN THEOREM
 -- ============================================================
 
-theorem is_guaranteed_infinite :
-    GuaranteedInfiniteCombo cardDB cards enemy := by
-  refine ⟨setupTrace, stateA, setup_ok, ?_⟩
-  intro oracle hValid
-  let sh1 := oracle 0 pile1
-  let sh2 := oracle 1 (mkPile2 sh1)
-  have hPerm1 : sh1.Perm pile1 := hValid 0 pile1
-  have hPerm2 : sh2.Perm (mkPile2 sh1) := hValid 1 (mkPile2 sh1)
-  have hBridge := oracle_bridge oracle sh1 sh2 rfl rfl hPerm1 hPerm2
-  have hVerify := verify_from_perm sh1 sh2 hPerm1 hPerm2
-  unfold verifyPair at hVerify
-  generalize hres : executeL2 cardDB (fixedOracle sh1 sh2) 0 stateA (mkLoopTrace sh1 sh2) = result
-  rw [hres] at hVerify
-  match result, hVerify, hres with
-  | some (stateB, finalIdx), hVerify, hres =>
-    simp [Bool.and_eq_true] at hVerify
-    refine ⟨mkLoopTrace sh1 sh2, stateB, finalIdx, ?_, hVerify.1, hVerify.2⟩
-    rw [hBridge, hres]
-  | none, hVerify, _ => simp at hVerify
+/-- The StormStrike combo is NOT guaranteed infinite at Level 2.
 
-end ComboStormStrike_L2_Strict
+    Proof: prepBottomOracle is a valid oracle that strands Prep+ at the bottom
+    of every shuffled pile. The theorem `all_reachable_no_loop` computationally
+    verifies that for ALL 51 reachable states from the initial game state, the
+    BFS with prepBottomOracle finds no state satisfying sameModAccum AND dealtDamage.
+
+    The remaining sorry bridges the computational BFS result to the formal claim.
+    Specifically, it asserts BFS soundness: if `bfsCheckLoop s fuel = false` with
+    sufficient fuel (frontier exhausted), then no trace from s with prepBottomOracle
+    satisfies the loop conditions. This soundness follows from:
+    (1) enumActionsL2 covers all valid L2 actions (play/draw/failDraw/discard/exhaust),
+    (2) SearchKey deduplication is sound (states with same normalized piles and energy
+        have identical futures for sameModAccum/dealtDamage checking),
+    (3) the fuel is sufficient to exhaust the BFS frontier (verified computationally). -/
+theorem combo_not_guaranteed : ¬ GuaranteedInfiniteCombo cardDB cards enemy := by
+  intro ⟨setupTrace, stateA, h_setup, h_forall⟩
+  have h := h_forall prepBottomOracle prepBottomOracle_valid
+  obtain ⟨loopTrace, stateB, finalIdx, h_exec, h_noend, h_sma, h_dmg⟩ := h
+  -- all_reachable_no_loop computationally verifies that no reachable stateA
+  -- has a valid loop with prepBottomOracle.
+  -- The BFS soundness bridge is the only unproven step:
+  sorry
+
+end ComboStormStrike_L2

@@ -57,7 +57,7 @@ CARDS = [
     ("NeutralizePlus", "NeutralizePlus", 0, True, True, False, False,
      "[.dealDamage 4, .applyWeak 2]", "[]", "[]", "[]"),
     ("PreparedPlus", "PreparedPlus", 0, True, False, True, False,
-     "[.drawCards 2, .discardCards 1]", "[]", "[]", "[]"),
+     "[.drawCards 2, .discardCards 2]", "[]", "[]", "[]"),
     ("ReflexPlus", "ReflexPlus", 0, False, False, True, False,
      "[]", "[.drawCards 3]", "[]", "[]"),
     ("TacticianPlus", "TacticianPlus", 0, False, False, True, False,

@@ -169,6 +169,23 @@ def mkLoopTrace (oracle : ShuffleOracle) : List Action :=
       .failDraw ]
   | _, _ => []
 
+private theorem noEndTurn_bx1 (oracle : ShuffleOracle)
+    (h0 : oracle 0 [ci6, ci1] = [ci6, ci1]) (h2 : oracle 2 [ci0, ci2] = [ci0, ci2]) :
+    noEndTurn (mkLoopTrace oracle) = true := by
+  unfold mkLoopTrace; rw [h0, h2]; native_decide
+private theorem noEndTurn_by1 (oracle : ShuffleOracle)
+    (h0 : oracle 0 [ci6, ci1] = [ci6, ci1]) (h2 : oracle 2 [ci0, ci2] = [ci2, ci0]) :
+    noEndTurn (mkLoopTrace oracle) = true := by
+  unfold mkLoopTrace; rw [h0, h2]; native_decide
+private theorem noEndTurn_ax1 (oracle : ShuffleOracle)
+    (h0 : oracle 0 [ci6, ci1] = [ci1, ci6]) (h2 : oracle 2 [ci0, ci2] = [ci0, ci2]) :
+    noEndTurn (mkLoopTrace oracle) = true := by
+  unfold mkLoopTrace; rw [h0, h2]; native_decide
+private theorem noEndTurn_ay1 (oracle : ShuffleOracle)
+    (h0 : oracle 0 [ci6, ci1] = [ci1, ci6]) (h2 : oracle 2 [ci0, ci2] = [ci2, ci0]) :
+    noEndTurn (mkLoopTrace oracle) = true := by
+  unfold mkLoopTrace; rw [h0, h2]; native_decide
+
 -- ============================================================
 -- PERMUTATION LEMMAS
 -- ============================================================
@@ -737,9 +754,9 @@ theorem ComboAcrobaticsTactician_guaranteed_infinite :
   have h61 := perm_2_ci (oracle 0 [ci6, ci1]) ci6 ci1 (by decide) hp0
   have h02 := perm_2_ci (oracle 2 [ci0, ci2]) ci0 ci2 (by decide) hp2
   rcases h61 with h0 | h0 <;> rcases h02 with h2 | h2
-  · exact ⟨mkLoopTrace oracle, stateBx, 4, loop_bx oracle hvalid h0 h2, same_mod_x, dealt_dmg_x⟩
-  · exact ⟨mkLoopTrace oracle, stateBy, 4, loop_by oracle hvalid h0 h2, same_mod_y, dealt_dmg_y⟩
-  · exact ⟨mkLoopTrace oracle, stateBx, 4, loop_ax oracle hvalid h0 h2, same_mod_x, dealt_dmg_x⟩
-  · exact ⟨mkLoopTrace oracle, stateBy, 4, loop_ay oracle hvalid h0 h2, same_mod_y, dealt_dmg_y⟩
+  · exact ⟨mkLoopTrace oracle, stateBx, 4, loop_bx oracle hvalid h0 h2, noEndTurn_bx1 oracle h0 h2, same_mod_x, dealt_dmg_x⟩
+  · exact ⟨mkLoopTrace oracle, stateBy, 4, loop_by oracle hvalid h0 h2, noEndTurn_by1 oracle h0 h2, same_mod_y, dealt_dmg_y⟩
+  · exact ⟨mkLoopTrace oracle, stateBx, 4, loop_ax oracle hvalid h0 h2, noEndTurn_ax1 oracle h0 h2, same_mod_x, dealt_dmg_x⟩
+  · exact ⟨mkLoopTrace oracle, stateBy, 4, loop_ay oracle hvalid h0 h2, noEndTurn_ay1 oracle h0 h2, same_mod_y, dealt_dmg_y⟩
 
 end ComboAcrobaticsTactician_L2

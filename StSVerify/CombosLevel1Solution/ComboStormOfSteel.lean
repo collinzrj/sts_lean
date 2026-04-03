@@ -30,13 +30,14 @@ def setupTrace : List Action := [
   .play 4, .play 5, .play 6        -- play 3 Shivs (4 dmg each, exhaust)
 ]
 
--- Loop: Prep cycle, discard Reflex for draw 3, play Storm again
+-- Loop: Prep cycle, discard Reflex+Tact for draw 3 + 2E, play Storm again
 -- Creates Shivs 7,8 (2 hand cards at Storm time)
 def loopTrace : List Action := [
-  .play 3,                          -- Prepared+: draw 2, discard 1
+  .play 3,                          -- Prepared+: draw 2, discard 2
   .draw 0, .failDraw,              -- draw SoS from shuffled discard, fail 2nd draw
   .discard 2,                       -- discard Reflex (trigger: draw 3)
-  .draw 2, .failDraw,              -- draw Reflex from shuffled discard, fail rest
+  .discard 1,                       -- discard Tact (trigger: +2E)
+  .draw 1, .draw 2, .failDraw,    -- draw Tact, Reflex from shuffled discard, fail 3rd
   .play 0,                          -- Storm: discard 2 hand cards, create 2 Shivs
   .draw 1, .draw 2, .draw 3,       -- draw 3 from shuffled discard
   .play 7, .play 8                  -- play 2 Shivs
@@ -83,7 +84,7 @@ def stateB : GameState := {
                   { id := 4, name := Shiv, cost := 0, damage := 4 }]
   inUse := []
   actionQueue := []
-  energy := 5
+  energy := 7
   damage := 20
   block := 0
   stance := .Neutral
@@ -105,10 +106,11 @@ theorem loop_ok :
     execute cardDB stateA loopTrace = some stateB := by
   native_decide
 
+theorem no_end : noEndTurn loopTrace = true := by native_decide
 theorem same_mod : sameModAccum stateA stateB = true := by native_decide
 theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 
 theorem ComboStormOfSteel_infinite : InfiniteCombo cardDB cards enemy :=
-  ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, same_mod, dealt_dmg⟩
+  ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
 end ComboStormOfSteel

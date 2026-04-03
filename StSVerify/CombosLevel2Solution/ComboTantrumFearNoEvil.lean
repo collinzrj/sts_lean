@@ -247,7 +247,8 @@ private def verifyOne (s1 s2 : List CardInstance) : Bool :=
   match executeL2 cardDB (fixedOracle s1 s2) 0 stateA (mkLoopTrace s1 s2) with
   | some (stateB, _) =>
     sameModAccum stateA stateB && dealtDamage stateA stateB &&
-    drawCondBool (fixedOracle s1 s2) pile1 (mkPile2 s1) 0 stateA (mkLoopTrace s1 s2)
+    drawCondBool (fixedOracle s1 s2) pile1 (mkPile2 s1) 0 stateA (mkLoopTrace s1 s2) &&
+    noEndTurn (mkLoopTrace s1 s2)
   | none => false
 
 private def allPerms4 : List (List CardInstance) :=
@@ -301,6 +302,7 @@ private theorem case_handler (sh1 sh2 p2 : List CardInstance)
     (h1 : oracle 1 p2 = sh2) :
     ∃ (loopTrace : List Action) (stateB : GameState) (finalIdx : Nat),
       executeL2 cardDB oracle 0 stateA loopTrace = some (stateB, finalIdx)
+      ∧ noEndTurn loopTrace = true
       ∧ sameModAccum stateA stateB = true
       ∧ dealtDamage stateA stateB = true := by
   have hv := verifyOne_of_mem sh1 sh2 hmem1 hmem2
@@ -313,10 +315,10 @@ private theorem case_handler (sh1 sh2 p2 : List CardInstance)
   match result, hv with
   | some (stB, fIdx), hv =>
     simp only [Bool.and_eq_true] at hv
-    obtain ⟨⟨hsm, hdd⟩, hdc⟩ := hv
+    obtain ⟨⟨⟨hsm, hdd⟩, hdc⟩, hne⟩ := hv
     have hbridge := drawCondBool_bridge oracle (fixedOracle sh1 sh2) pile1 (mkPile2 sh1) hf0 hf1 0 stateA
       (mkLoopTrace sh1 sh2) hdc
-    exact ⟨mkLoopTrace sh1 sh2, stB, fIdx, hbridge ▸ hres, hsm, hdd⟩
+    exact ⟨mkLoopTrace sh1 sh2, stB, fIdx, hbridge ▸ hres, hne, hsm, hdd⟩
   | none, hv => simp at hv
 
 

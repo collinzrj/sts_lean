@@ -7,8 +7,7 @@
 
   Setup uses lucky draws (Level 1). The loop proof must handle all shuffles.
 -/
-import StSVerify.Engine
-import StSVerify.EngineHelperLemmas
+import StSVerify.Basic
 import StSVerify.CardDB
 
 open CardName Action

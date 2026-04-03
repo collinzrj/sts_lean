@@ -170,6 +170,23 @@ def mkLoopTrace (oracle : ShuffleOracle) : List Action :=
       .play 7, .play 5, .autoPlayFlurry 7 ]
   | _, _ => []
 
+private theorem noEndTurn_a1 (oracle : ShuffleOracle)
+    (h1 : oracle 0 [ci5, ci7] = [ci5, ci7]) (h2 : oracle 1 [ci3, ci6] = [ci3, ci6]) :
+    noEndTurn (mkLoopTrace oracle) = true := by
+  unfold mkLoopTrace; rw [h1, h2]; native_decide
+private theorem noEndTurn_a2 (oracle : ShuffleOracle)
+    (h1 : oracle 0 [ci5, ci7] = [ci5, ci7]) (h2 : oracle 1 [ci3, ci6] = [ci6, ci3]) :
+    noEndTurn (mkLoopTrace oracle) = true := by
+  unfold mkLoopTrace; rw [h1, h2]; native_decide
+private theorem noEndTurn_b1 (oracle : ShuffleOracle)
+    (h1 : oracle 0 [ci5, ci7] = [ci7, ci5]) (h2 : oracle 1 [ci3, ci6] = [ci3, ci6]) :
+    noEndTurn (mkLoopTrace oracle) = true := by
+  unfold mkLoopTrace; rw [h1, h2]; native_decide
+private theorem noEndTurn_b2 (oracle : ShuffleOracle)
+    (h1 : oracle 0 [ci5, ci7] = [ci7, ci5]) (h2 : oracle 1 [ci3, ci6] = [ci6, ci3]) :
+    noEndTurn (mkLoopTrace oracle) = true := by
+  unfold mkLoopTrace; rw [h1, h2]; native_decide
+
 -- ============================================================
 -- PERMUTATION ENUMERATION (2-element, CardInstance)
 -- ============================================================
@@ -827,9 +844,9 @@ theorem ComboStandardWatcher_guaranteed_infinite :
   have h57 := perm_2_ci (oracle 0 [ci5, ci7]) ci5 ci7 (by decide) hp1
   have h36 := perm_2_ci (oracle 1 [ci3, ci6]) ci3 ci6 (by decide) hp2
   rcases h57 with h1 | h1 <;> rcases h36 with h2 | h2
-  · exact ⟨mkLoopTrace oracle, stateBx, 2, loop_a1 oracle h1 h2, same_mod_x, dealt_dmg_x⟩
-  · exact ⟨mkLoopTrace oracle, stateBy, 2, loop_a2 oracle h1 h2, same_mod_y, dealt_dmg_y⟩
-  · exact ⟨mkLoopTrace oracle, stateBx, 2, loop_b1 oracle h1 h2, same_mod_x, dealt_dmg_x⟩
-  · exact ⟨mkLoopTrace oracle, stateBy, 2, loop_b2 oracle h1 h2, same_mod_y, dealt_dmg_y⟩
+  · exact ⟨mkLoopTrace oracle, stateBx, 2, loop_a1 oracle h1 h2, noEndTurn_a1 oracle h1 h2, same_mod_x, dealt_dmg_x⟩
+  · exact ⟨mkLoopTrace oracle, stateBy, 2, loop_a2 oracle h1 h2, noEndTurn_a2 oracle h1 h2, same_mod_y, dealt_dmg_y⟩
+  · exact ⟨mkLoopTrace oracle, stateBx, 2, loop_b1 oracle h1 h2, noEndTurn_b1 oracle h1 h2, same_mod_x, dealt_dmg_x⟩
+  · exact ⟨mkLoopTrace oracle, stateBy, 2, loop_b2 oracle h1 h2, noEndTurn_b2 oracle h1 h2, same_mod_y, dealt_dmg_y⟩
 
 end ComboStandardWatcher_L2

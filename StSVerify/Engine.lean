@@ -798,6 +798,13 @@ def mkInitialState (cardDB : CardName → CardDef)
      - this means the loop trace can repeat forever -> infinite damage
 -/
 
+/-- A loop trace must not contain endTurn — the loop must complete within a single turn.
+    (endTurn lets the enemy act, so a combo requiring endTurn is not truly infinite.) -/
+def noEndTurn : List Action → Bool
+  | [] => true
+  | .endTurn :: _ => false
+  | _ :: rest => noEndTurn rest
+
 def InfiniteCombo (cardDB : CardName → CardDef)
     (cards : List (CardName × Nat)) (enemy : EnemyState) : Prop :=
   ∃ (setupTrace loopTrace : List Action)
@@ -806,6 +813,8 @@ def InfiniteCombo (cardDB : CardName → CardDef)
     execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA
     -- Loop from stateA reaches stateB
     ∧ execute cardDB stateA loopTrace = some stateB
+    -- Loop stays within a single turn (no endTurn)
+    ∧ noEndTurn loopTrace = true
     -- stateB = stateA except more damage
     ∧ sameModAccum stateA stateB = true
     ∧ dealtDamage stateA stateB = true
@@ -881,5 +890,7 @@ def GuaranteedInfiniteCombo (cardDB : CardName → CardDef)
         validOracle oracle →
         ∃ (loopTrace : List Action) (stateB : GameState) (finalIdx : Nat),
           executeL2 cardDB oracle 0 stateA loopTrace = some (stateB, finalIdx)
+          -- Loop stays within a single turn
+          ∧ noEndTurn loopTrace = true
           ∧ sameModAccum stateA stateB = true
           ∧ dealtDamage stateA stateB = true

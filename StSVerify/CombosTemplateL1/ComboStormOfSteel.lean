@@ -5,7 +5,7 @@
   Prove there EXISTS a sequence of actions that loops,
   dealing damage each iteration. Lucky draws are OK.
 -/
-import StSVerify.Engine
+import StSVerify.Basic
 import StSVerify.CardDB
 
 open CardName Action
@@ -26,7 +26,7 @@ def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
     id= 0  钢铁风暴+ (StormOfSteelPlus, 1E, Skill): Discard your hand. Add 1 Shiv per card discarded.
     id= 1  战术大师+ (TacticianPlus, 0E, Skill): Cannot be played. On discard: gain 2 energy.
     id= 2  本能反应+ (ReflexPlus, 0E, Skill): Cannot be played. On discard: draw 3 cards.
-    id= 3  早有准备+ (PreparedPlus, 0E, Skill): Draw 2 cards. Discard 1 card.
+    id= 3  早有准备+ (PreparedPlus, 0E, Skill): Draw 2 cards. Discard 2 cards.
 
   Initial state: all 4 cards in draw pile, 5 draws queued, 3 energy.
   Your first actions must be .draw to pick your opening hand.

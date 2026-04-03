@@ -142,6 +142,7 @@ theorem setup_ok :
     execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA := by
   native_decide
 
+theorem no_end : noEndTurn loopTrace = true := by native_decide
 theorem same_mod : sameModAccum stateA stateB = true := by native_decide
 theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 
@@ -273,6 +274,6 @@ theorem loop_executeL2_eq (oracle : ShuffleOracle) :
 theorem ComboStreamlineHologram_guaranteed_infinite :
     GuaranteedInfiniteCombo cardDB cards enemy := by
   exact ⟨setupTrace, stateA, setup_ok, fun oracle _hvalid =>
-    ⟨loopTrace, stateB, 0, loop_executeL2_eq oracle, same_mod, dealt_dmg⟩⟩
+    ⟨loopTrace, stateB, 0, loop_executeL2_eq oracle, no_end, same_mod, dealt_dmg⟩⟩
 
 end ComboStreamlineHologram_L2

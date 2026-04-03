@@ -220,6 +220,7 @@ theorem setup_ok :
     execute cardDB (mkInitialState cardDB allCards enemy) setupTrace = some stateA := by
   native_decide
 
+theorem no_end : noEndTurn loopTrace = true := by native_decide
 theorem same_mod : sameModAccum stateA stateB = true := by native_decide
 theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 
@@ -293,6 +294,6 @@ theorem ComboCorruptionDropkick_guaranteed_infinite :
     GuaranteedInfiniteCombo cardDB allCards enemy := by
   refine ⟨setupTrace, stateA, setup_ok, ?_⟩
   intro oracle h_valid
-  exact ⟨loopTrace, stateB, 2, loop_l2 oracle h_valid, same_mod, dealt_dmg⟩
+  exact ⟨loopTrace, stateB, 2, loop_l2 oracle h_valid, no_end, same_mod, dealt_dmg⟩
 
 end ComboCorruptionDropkick_L2_Strict

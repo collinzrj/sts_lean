@@ -4,11 +4,13 @@
 
   v2 engine: CardInstance piles, sameModAccum, executeL2 with ShuffleOracle.
 
+  Prepared+ now does draw 2, discard 2.
+
   Shuffle points in loop:
-    0: discardPile = [SoS+(0)]          — singleton, deterministic
-    1: discardPile = [Reflex+(2)]       — singleton, deterministic
-    2: discardPile = [Reflex+(2), Tactician+(1), Prepared+(3)] — 3! = 6 perms
-  All 6 permutations draw the same 3 cards; plays use findById so order is irrelevant.
+    0: discardPile = [SoS+(0)]              — singleton, deterministic
+    1: discardPile = [Tact+(1), Reflex+(2)] — 2! = 2 perms
+    2: discardPile = 3 cards (order depends on path) — 3! = 6 perms
+  All permutations draw the same 3 cards; plays use findById so order is irrelevant.
 -/
 
 import StSVerify.Engine
@@ -76,15 +78,16 @@ def stateA : GameState := {
 }
 
 -- ============================================================
--- LOOP TRACE (parameterized by the 3-card permutation at shuffle point 2)
+-- LOOP TRACE
 -- ============================================================
 
-def mkLoopTrace (perm : List CardInstance) : List Action :=
-  [.play 3, .draw 0, .failDraw, .discard 2, .draw 2, .failDraw, .play 0] ++
-  (perm.map fun c => Action.draw c.id) ++
+def mkLoopTrace (perm2 perm3 : List CardInstance) : List Action :=
+  [.play 3, .draw 0, .failDraw, .discard 2, .discard 1] ++
+  (perm2.map fun c => Action.draw c.id) ++
+  [.failDraw, .play 0] ++
+  (perm3.map fun c => Action.draw c.id) ++
   [.play 7, .play 8]
 
--- Final state: hand order depends on permutation
 private def stateB_of (a b c : CardInstance) : GameState := {
   hand := [c, b, a]
   drawPile := []
@@ -92,7 +95,7 @@ private def stateB_of (a b c : CardInstance) : GameState := {
   exhaustPile := [shiv8, shiv7] ++ exhaustBase
   inUse := []
   actionQueue := []
-  energy := 5
+  energy := 7
   damage := 20
   block := 0
   stance := .Neutral
@@ -115,8 +118,23 @@ theorem setup_ok :
   native_decide
 
 -- ============================================================
--- PERMUTATION ENUMERATION (3-element)
+-- PERMUTATION ENUMERATION
 -- ============================================================
+
+private theorem perm_2_cases (l : List CardInstance) (hp : l.Perm [ci1, ci2]) :
+    l = [ci1, ci2] ∨ l = [ci2, ci1] := by
+  have hlen := hp.length_eq
+  simp at hlen
+  match l, hlen with
+  | [x, y], _ =>
+    have hx : x ∈ [ci1, ci2] := hp.mem_iff.mp (by simp)
+    have hy : y ∈ [ci1, ci2] := hp.mem_iff.mp (by simp)
+    simp only [List.mem_cons, List.mem_singleton, List.mem_nil_iff, or_false] at hx hy
+    rcases hx with rfl | rfl <;> rcases hy with rfl | rfl
+    all_goals first
+      | left; rfl
+      | right; rfl
+      | exact absurd hp (by decide)
 
 private theorem perm_3_cases (l : List CardInstance) (hp : l.Perm [ci2, ci1, ci3]) :
     l = [ci2, ci1, ci3] ∨ l = [ci2, ci3, ci1] ∨ l = [ci1, ci2, ci3] ∨
@@ -175,19 +193,16 @@ private theorem sL2_draw {oracle : ShuffleOracle} {si si' : Nat} {s s' : GameSta
 
 -- ============================================================
 -- INTERMEDIATE STATES
--- All states here are RAW outputs of step (NOT cleaned),
--- except those marked as "cleaned" which are outputs of resolveInUse∘autoDrain.
--- The hc_* lemmas handle the cleanup transitions.
 -- ============================================================
 
--- After play Prepared+(3): raw step output
+-- After play Prepared+(3)
 private def s1 : GameState := {
   hand := [ci2, ci1]
   drawPile := []
   discardPile := [ci0]
   exhaustPile := exhaustBase
   inUse := [ci3]
-  actionQueue := [.draw, .draw, .discardChoice]
+  actionQueue := [.draw, .draw, .discardChoice, .discardChoice]
   energy := 4
   damage := 12
   block := 0
@@ -202,14 +217,14 @@ private def s1 : GameState := {
   corruptionActive := false
 }
 
--- After draw SoS(0): raw drawCardL2 output
+-- After draw SoS(0)
 private def s2 : GameState := {
   hand := [ci0, ci2, ci1]
   drawPile := []
   discardPile := []
   exhaustPile := exhaustBase
   inUse := [ci3]
-  actionQueue := [.draw, .discardChoice]
+  actionQueue := [.draw, .discardChoice, .discardChoice]
   energy := 4
   damage := 12
   block := 0
@@ -224,17 +239,17 @@ private def s2 : GameState := {
   corruptionActive := false
 }
 
--- After failDraw: drops consecutive draws, leaves discardChoice
-private def s3 : GameState := { s2 with actionQueue := [.discardChoice] }
+-- After failDraw
+private def s3 : GameState := { s2 with actionQueue := [.discardChoice, .discardChoice] }
 
--- After discard Reflex(2): Reflex trigger adds 3 draws (bottom)
+-- After discard Reflex(2)
 private def s4 : GameState := {
   hand := [ci0, ci1]
   drawPile := []
   discardPile := [ci2]
   exhaustPile := exhaustBase
   inUse := [ci3]
-  actionQueue := [.draw, .draw, .draw]
+  actionQueue := [.discardChoice, .draw, .draw, .draw]
   energy := 4
   damage := 12
   block := 0
@@ -249,15 +264,37 @@ private def s4 : GameState := {
   corruptionActive := false
 }
 
--- After draw Reflex(2): raw drawCardL2 output
-private def s5 : GameState := {
-  hand := [ci2, ci0, ci1]
+-- After discard Tactician(1)
+private def s4b : GameState := {
+  hand := [ci0]
   drawPile := []
+  discardPile := [ci1, ci2]
+  exhaustPile := exhaustBase
+  inUse := [ci3]
+  actionQueue := [.draw, .draw, .draw]
+  energy := 6
+  damage := 12
+  block := 0
+  stance := .Neutral
+  orbs := []
+  orbSlots := 3
+  focus := 0
+  enemy := enemy
+  activePowers := []
+  nextId := 7
+  noDraw := false
+  corruptionActive := false
+}
+
+-- After first draw from 2-element shuffle
+private def s5_2 (d e : CardInstance) : GameState := {
+  hand := [d, ci0]
+  drawPile := [e]
   discardPile := []
   exhaustPile := exhaustBase
   inUse := [ci3]
   actionQueue := [.draw, .draw]
-  energy := 4
+  energy := 6
   damage := 12
   block := 0
   stance := .Neutral
@@ -271,19 +308,40 @@ private def s5 : GameState := {
   corruptionActive := false
 }
 
--- After failDraw from s5: actionQueue=[], inUse=[ci3]
-private def s5_fd : GameState := { s5 with actionQueue := [] }
+-- After second draw from 2-element shuffle
+private def s5_3 (d e : CardInstance) : GameState := {
+  hand := [e, d, ci0]
+  drawPile := []
+  discardPile := []
+  exhaustPile := exhaustBase
+  inUse := [ci3]
+  actionQueue := [.draw]
+  energy := 6
+  damage := 12
+  block := 0
+  stance := .Neutral
+  orbs := []
+  orbSlots := 3
+  focus := 0
+  enemy := enemy
+  activePowers := []
+  nextId := 7
+  noDraw := false
+  corruptionActive := false
+}
 
--- After cleanup(s5_fd): Prepared+ moves from inUse to discard
--- This is the cleaned state BEFORE play SoS
-private def s6 : GameState := {
-  hand := [ci2, ci0, ci1]
+-- After failDraw
+private def s5_fd (d e : CardInstance) : GameState := { s5_3 d e with actionQueue := [] }
+
+-- After cleanup: Prep+ from inUse to discard
+private def s6 (d e : CardInstance) : GameState := {
+  hand := [e, d, ci0]
   drawPile := []
   discardPile := [ci3]
   exhaustPile := exhaustBase
   inUse := []
   actionQueue := []
-  energy := 4
+  energy := 6
   damage := 12
   block := 0
   stance := .Neutral
@@ -297,16 +355,15 @@ private def s6 : GameState := {
   corruptionActive := false
 }
 
--- After play SoS(0): RAW step output (before autoDrain)
--- Storm creates 2 Shivs in hand, enqueues discardSpecific for Tact+Reflex
-private def s7_raw : GameState := {
-  hand := [shiv7, shiv8, ci2, ci1]
+-- After play SoS(0): RAW
+private def s7_raw (d e : CardInstance) : GameState := {
+  hand := [shiv7, shiv8, e, d]
   drawPile := []
   discardPile := [ci3]
   exhaustPile := exhaustBase
   inUse := [ci0]
-  actionQueue := [.discardSpecific 1, .discardSpecific 2]
-  energy := 3
+  actionQueue := [.discardSpecific d.id, .discardSpecific e.id]
+  energy := 5
   damage := 12
   block := 0
   stance := .Neutral
@@ -320,17 +377,37 @@ private def s7_raw : GameState := {
   corruptionActive := false
 }
 
--- After cleanup(s7_raw): autoDrain processes discards (Tact+2E, Reflex+3draws),
--- resolveInUse does NOT fire (actionQueue non-empty after Reflex trigger)
--- Cleaned state for the draw step
-private def s7_clean : GameState := {
+-- Cleaned variant A (2-elem [ci1, ci2])
+private def s7_cleanA : GameState := {
   hand := [shiv7, shiv8]
   drawPile := []
   discardPile := [ci2, ci1, ci3]
   exhaustPile := exhaustBase
   inUse := [ci0]
   actionQueue := [.draw, .draw, .draw]
-  energy := 5
+  energy := 7
+  damage := 12
+  block := 0
+  stance := .Neutral
+  orbs := []
+  orbSlots := 3
+  focus := 0
+  enemy := enemy
+  activePowers := []
+  nextId := 9
+  noDraw := false
+  corruptionActive := false
+}
+
+-- Cleaned variant B (2-elem [ci2, ci1])
+private def s7_cleanB : GameState := {
+  hand := [shiv7, shiv8]
+  drawPile := []
+  discardPile := [ci1, ci2, ci3]
+  exhaustPile := exhaustBase
+  inUse := [ci0]
+  actionQueue := [.draw, .draw, .draw]
+  energy := 7
   damage := 12
   block := 0
   stance := .Neutral
@@ -352,7 +429,7 @@ private def s_d1 (a b c : CardInstance) : GameState := {
   exhaustPile := exhaustBase
   inUse := [ci0]
   actionQueue := [.draw, .draw]
-  energy := 5
+  energy := 7
   damage := 12
   block := 0
   stance := .Neutral
@@ -374,7 +451,7 @@ private def s_d2 (a b c : CardInstance) : GameState := {
   exhaustPile := exhaustBase
   inUse := [ci0]
   actionQueue := [.draw]
-  energy := 5
+  energy := 7
   damage := 12
   block := 0
   stance := .Neutral
@@ -388,7 +465,7 @@ private def s_d2 (a b c : CardInstance) : GameState := {
   corruptionActive := false
 }
 
--- After third draw: all 3 drawn, actionQueue=[], inUse=[ci0]
+-- After third draw
 private def s_d3 (a b c : CardInstance) : GameState := {
   hand := [c, b, a, shiv7, shiv8]
   drawPile := []
@@ -396,29 +473,7 @@ private def s_d3 (a b c : CardInstance) : GameState := {
   exhaustPile := exhaustBase
   inUse := [ci0]
   actionQueue := []
-  energy := 5
-  damage := 12
-  block := 0
-  stance := .Neutral
-  orbs := []
-  orbSlots := 3
-  focus := 0
-  enemy := enemy
-  activePowers := []
-  nextId := 9
-  noDraw := false
-  corruptionActive := false
-}
-
--- After cleanup(s_d3): SoS goes to discard (resolveInUse)
-private def s_resolved (a b c : CardInstance) : GameState := {
-  hand := [c, b, a, shiv7, shiv8]
-  drawPile := []
-  discardPile := [ci0]
-  exhaustPile := exhaustBase
-  inUse := []
-  actionQueue := []
-  energy := 5
+  energy := 7
   damage := 12
   block := 0
   stance := .Neutral
@@ -433,14 +488,13 @@ private def s_resolved (a b c : CardInstance) : GameState := {
 }
 
 -- ============================================================
--- STEP LEMMAS
+-- STEP LEMMAS (shared prefix)
 -- ============================================================
 
 private theorem hc_stateA : resolveInUse cardDB (autoDrain cardDB stateA) = stateA := by native_decide
 private theorem hs_play_prep : step cardDB stateA (.play 3) = some s1 := by native_decide
 private theorem hc_s1 : resolveInUse cardDB (autoDrain cardDB s1) = s1 := by native_decide
 
--- Draw SoS(0): singleton shuffle
 private theorem step_draw0 (oracle : ShuffleOracle) (hv : validOracle oracle) :
     drawCardL2 oracle 0 s1 0 = some (s2, 1) := by
   have hp : oracle 0 [ci0] = [ci0] := perm_singleton_eq ci0 _ (hv 0 [ci0])
@@ -455,57 +509,93 @@ private theorem hs_failDraw1 : step cardDB s2 .failDraw = some s3 := by native_d
 private theorem hc_s3 : resolveInUse cardDB (autoDrain cardDB s3) = s3 := by native_decide
 private theorem hs_discard2 : step cardDB s3 (.discard 2) = some s4 := by native_decide
 private theorem hc_s4 : resolveInUse cardDB (autoDrain cardDB s4) = s4 := by native_decide
-
--- Draw Reflex(2): singleton shuffle
-private theorem step_draw2 (oracle : ShuffleOracle) (hv : validOracle oracle) :
-    drawCardL2 oracle 1 s4 2 = some (s5, 2) := by
-  have hp : oracle 1 [ci2] = [ci2] := perm_singleton_eq ci2 _ (hv 1 [ci2])
-  simp only [ci2] at hp
-  unfold drawCardL2
-  simp only [s4, s5, ci0, ci1, ci2, ci3]
-  rw [hp]
-  native_decide
-
-private theorem hc_s5 : resolveInUse cardDB (autoDrain cardDB s5) = s5 := by native_decide
-private theorem hs_failDraw2 : step cardDB s5 .failDraw = some s5_fd := by native_decide
-private theorem hc_s5_fd : resolveInUse cardDB (autoDrain cardDB s5_fd) = s6 := by native_decide
-private theorem hs_play_storm : step cardDB s6 (.play 0) = some s7_raw := by native_decide
-private theorem hc_s7_raw : resolveInUse cardDB (autoDrain cardDB s7_raw) = s7_clean := by native_decide
+private theorem hs_discard1 : step cardDB s4 (.discard 1) = some s4b := by native_decide
+private theorem hc_s4b : resolveInUse cardDB (autoDrain cardDB s4b) = s4b := by native_decide
 
 -- ============================================================
--- DRAW LEMMAS (3-element shuffle at index 2)
+-- 2-ELEMENT SHUFFLE DRAW LEMMAS
 -- ============================================================
 
-private theorem fd_213 :
-    drawCardL2 (fun _ _ => [ci2, ci1, ci3]) 2 s7_clean 2 = some (s_d1 ci2 ci1 ci3, 3) := by
-  native_decide
-private theorem fd_231 :
-    drawCardL2 (fun _ _ => [ci2, ci3, ci1]) 2 s7_clean 2 = some (s_d1 ci2 ci3 ci1, 3) := by
-  native_decide
-private theorem fd_123 :
-    drawCardL2 (fun _ _ => [ci1, ci2, ci3]) 2 s7_clean 1 = some (s_d1 ci1 ci2 ci3, 3) := by
-  native_decide
-private theorem fd_132 :
-    drawCardL2 (fun _ _ => [ci1, ci3, ci2]) 2 s7_clean 1 = some (s_d1 ci1 ci3 ci2, 3) := by
-  native_decide
-private theorem fd_321 :
-    drawCardL2 (fun _ _ => [ci3, ci2, ci1]) 2 s7_clean 3 = some (s_d1 ci3 ci2 ci1, 3) := by
-  native_decide
-private theorem fd_312 :
-    drawCardL2 (fun _ _ => [ci3, ci1, ci2]) 2 s7_clean 3 = some (s_d1 ci3 ci1 ci2, 3) := by
-  native_decide
+private theorem fd2_12 :
+    drawCardL2 (fun _ _ => [ci1, ci2]) 1 s4b 1 = some (s5_2 ci1 ci2, 2) := by native_decide
+private theorem fd2_21 :
+    drawCardL2 (fun _ _ => [ci2, ci1]) 1 s4b 2 = some (s5_2 ci2 ci1, 2) := by native_decide
 
--- Second draw: drawPile non-empty → oracle-independent
+private theorem sd2_2elem (oracle : ShuffleOracle) (d e : CardInstance) :
+    drawCardL2 oracle 2 (s5_2 d e) e.id = some (s5_3 d e, 2) := by
+  simp [drawCardL2, s5_2, s5_3]
+
+-- Concrete versions for matching literal action ids
+private theorem sd2_2elem_12 (oracle : ShuffleOracle) :
+    drawCardL2 oracle 2 (s5_2 ci1 ci2) 2 = some (s5_3 ci1 ci2, 2) := sd2_2elem oracle ci1 ci2
+private theorem sd2_2elem_21 (oracle : ShuffleOracle) :
+    drawCardL2 oracle 2 (s5_2 ci2 ci1) 1 = some (s5_3 ci2 ci1, 2) := sd2_2elem oracle ci2 ci1
+
+private theorem hc_s5_2 (d e : CardInstance) :
+    resolveInUse cardDB (autoDrain cardDB (s5_2 d e)) = s5_2 d e := by
+  simp [s5_2, autoDrain, resolveInUse]
+private theorem hc_s5_3 (d e : CardInstance) :
+    resolveInUse cardDB (autoDrain cardDB (s5_3 d e)) = s5_3 d e := by
+  simp [s5_3, autoDrain, resolveInUse]
+
+private theorem hs_failDraw2_12 : step cardDB (s5_3 ci1 ci2) .failDraw = some (s5_fd ci1 ci2) := by native_decide
+private theorem hs_failDraw2_21 : step cardDB (s5_3 ci2 ci1) .failDraw = some (s5_fd ci2 ci1) := by native_decide
+
+private theorem hc_s5_fd_12 : resolveInUse cardDB (autoDrain cardDB (s5_fd ci1 ci2)) = s6 ci1 ci2 := by native_decide
+private theorem hc_s5_fd_21 : resolveInUse cardDB (autoDrain cardDB (s5_fd ci2 ci1)) = s6 ci2 ci1 := by native_decide
+
+private theorem hs_play_storm_12 : step cardDB (s6 ci1 ci2) (.play 0) = some (s7_raw ci1 ci2) := by native_decide
+private theorem hs_play_storm_21 : step cardDB (s6 ci2 ci1) (.play 0) = some (s7_raw ci2 ci1) := by native_decide
+
+private theorem hc_s7_raw_A : resolveInUse cardDB (autoDrain cardDB (s7_raw ci1 ci2)) = s7_cleanA := by native_decide
+private theorem hc_s7_raw_B : resolveInUse cardDB (autoDrain cardDB (s7_raw ci2 ci1)) = s7_cleanB := by native_decide
+
+-- ============================================================
+-- 3-ELEMENT SHUFFLE DRAW LEMMAS (variant A)
+-- ============================================================
+
+private theorem fdA_213 :
+    drawCardL2 (fun _ _ => [ci2, ci1, ci3]) 2 s7_cleanA 2 = some (s_d1 ci2 ci1 ci3, 3) := by native_decide
+private theorem fdA_231 :
+    drawCardL2 (fun _ _ => [ci2, ci3, ci1]) 2 s7_cleanA 2 = some (s_d1 ci2 ci3 ci1, 3) := by native_decide
+private theorem fdA_123 :
+    drawCardL2 (fun _ _ => [ci1, ci2, ci3]) 2 s7_cleanA 1 = some (s_d1 ci1 ci2 ci3, 3) := by native_decide
+private theorem fdA_132 :
+    drawCardL2 (fun _ _ => [ci1, ci3, ci2]) 2 s7_cleanA 1 = some (s_d1 ci1 ci3 ci2, 3) := by native_decide
+private theorem fdA_321 :
+    drawCardL2 (fun _ _ => [ci3, ci2, ci1]) 2 s7_cleanA 3 = some (s_d1 ci3 ci2 ci1, 3) := by native_decide
+private theorem fdA_312 :
+    drawCardL2 (fun _ _ => [ci3, ci1, ci2]) 2 s7_cleanA 3 = some (s_d1 ci3 ci1 ci2, 3) := by native_decide
+
+-- ============================================================
+-- 3-ELEMENT SHUFFLE DRAW LEMMAS (variant B)
+-- ============================================================
+
+private theorem fdB_213 :
+    drawCardL2 (fun _ _ => [ci2, ci1, ci3]) 2 s7_cleanB 2 = some (s_d1 ci2 ci1 ci3, 3) := by native_decide
+private theorem fdB_231 :
+    drawCardL2 (fun _ _ => [ci2, ci3, ci1]) 2 s7_cleanB 2 = some (s_d1 ci2 ci3 ci1, 3) := by native_decide
+private theorem fdB_123 :
+    drawCardL2 (fun _ _ => [ci1, ci2, ci3]) 2 s7_cleanB 1 = some (s_d1 ci1 ci2 ci3, 3) := by native_decide
+private theorem fdB_132 :
+    drawCardL2 (fun _ _ => [ci1, ci3, ci2]) 2 s7_cleanB 1 = some (s_d1 ci1 ci3 ci2, 3) := by native_decide
+private theorem fdB_321 :
+    drawCardL2 (fun _ _ => [ci3, ci2, ci1]) 2 s7_cleanB 3 = some (s_d1 ci3 ci2 ci1, 3) := by native_decide
+private theorem fdB_312 :
+    drawCardL2 (fun _ _ => [ci3, ci1, ci2]) 2 s7_cleanB 3 = some (s_d1 ci3 ci1 ci2, 3) := by native_decide
+
+-- ============================================================
+-- SHARED DRAW LEMMAS (2nd and 3rd from 3-elem, oracle-independent)
+-- ============================================================
+
 private theorem sd2_oracle (oracle : ShuffleOracle) (a b c : CardInstance) :
     drawCardL2 oracle 3 (s_d1 a b c) b.id = some (s_d2 a b c, 3) := by
   simp [drawCardL2, s_d1, s_d2]
 
--- Third draw: drawPile non-empty → oracle-independent
 private theorem sd3_oracle (oracle : ShuffleOracle) (a b c : CardInstance) :
     drawCardL2 oracle 3 (s_d2 a b c) c.id = some (s_d3 a b c, 3) := by
   simp [drawCardL2, s_d2, s_d3]
 
--- Cleanup lemmas for draw states (no discardSpecific, inUse non-empty but actionQueue non-empty)
 private theorem hc_d1 (a b c : CardInstance) :
     resolveInUse cardDB (autoDrain cardDB (s_d1 a b c)) = s_d1 a b c := by
   simp [s_d1, autoDrain, resolveInUse]
@@ -513,31 +603,12 @@ private theorem hc_d2 (a b c : CardInstance) :
     resolveInUse cardDB (autoDrain cardDB (s_d2 a b c)) = s_d2 a b c := by
   simp [s_d2, autoDrain, resolveInUse]
 
--- After third draw: inUse=[ci0], actionQueue=[] → resolveInUse fires
-private theorem hc_d3_213 :
-    resolveInUse cardDB (autoDrain cardDB (s_d3 ci2 ci1 ci3)) = s_resolved ci2 ci1 ci3 := by
-  native_decide
-private theorem hc_d3_231 :
-    resolveInUse cardDB (autoDrain cardDB (s_d3 ci2 ci3 ci1)) = s_resolved ci2 ci3 ci1 := by
-  native_decide
-private theorem hc_d3_123 :
-    resolveInUse cardDB (autoDrain cardDB (s_d3 ci1 ci2 ci3)) = s_resolved ci1 ci2 ci3 := by
-  native_decide
-private theorem hc_d3_132 :
-    resolveInUse cardDB (autoDrain cardDB (s_d3 ci1 ci3 ci2)) = s_resolved ci1 ci3 ci2 := by
-  native_decide
-private theorem hc_d3_321 :
-    resolveInUse cardDB (autoDrain cardDB (s_d3 ci3 ci2 ci1)) = s_resolved ci3 ci2 ci1 := by
-  native_decide
-private theorem hc_d3_312 :
-    resolveInUse cardDB (autoDrain cardDB (s_d3 ci3 ci1 ci2)) = s_resolved ci3 ci1 ci2 := by
-  native_decide
+-- (hc_d3 lemmas not needed: executeL2 handles cleanup internally in tail lemmas)
 
 -- ============================================================
--- TAIL VERIFICATION (play Shiv7, play Shiv8 — oracle independent)
+-- TAIL VERIFICATION
 -- ============================================================
 
--- Tail stated from s_d3 (executeL2 will cleanup via resolveInUse before each step)
 private theorem tail_213 :
     executeL2 cardDB (fun _ _ => []) 3 (s_d3 ci2 ci1 ci3)
       [.play 7, .play 8] = some (stateB_of ci2 ci1 ci3, 3) := by native_decide
@@ -557,13 +628,15 @@ private theorem tail_312 :
     executeL2 cardDB (fun _ _ => []) 3 (s_d3 ci3 ci1 ci2)
       [.play 7, .play 8] = some (stateB_of ci3 ci1 ci2, 3) := by native_decide
 
--- Oracle independence for tail
 private theorem tail_oracle_indep (o1 o2 : ShuffleOracle) (idx : Nat) (s : GameState) :
     executeL2 cardDB o1 idx s [.play 7, .play 8] =
     executeL2 cardDB o2 idx s [.play 7, .play 8] := by
   simp only [executeL2, stepL2]
 
--- sameModAccum and dealtDamage for each perm's final state
+-- ============================================================
+-- sameModAccum and dealtDamage
+-- ============================================================
+
 private theorem sm_213 : sameModAccum stateA (stateB_of ci2 ci1 ci3) = true := by native_decide
 private theorem sm_231 : sameModAccum stateA (stateB_of ci2 ci3 ci1) = true := by native_decide
 private theorem sm_123 : sameModAccum stateA (stateB_of ci1 ci2 ci3) = true := by native_decide
@@ -578,46 +651,141 @@ private theorem dd_132 : dealtDamage stateA (stateB_of ci1 ci3 ci2) = true := by
 private theorem dd_321 : dealtDamage stateA (stateB_of ci3 ci2 ci1) = true := by native_decide
 private theorem dd_312 : dealtDamage stateA (stateB_of ci3 ci1 ci2) = true := by native_decide
 
+private theorem noEndTurn_draw_map (l : List CardInstance) :
+    noEndTurn (List.map (fun c => Action.draw c.id) l) = true := by
+  induction l with
+  | nil => simp [noEndTurn]
+  | cons _ _ ih => simp [List.map, noEndTurn, ih]
+
+private theorem noEndTurn_append (l1 l2 : List Action)
+    (h1 : noEndTurn l1 = true) (h2 : noEndTurn l2 = true) :
+    noEndTurn (l1 ++ l2) = true := by
+  induction l1 with
+  | nil => exact h2
+  | cons a rest ih =>
+    simp [List.cons_append, noEndTurn]
+    cases a <;> simp [noEndTurn] at h1 ⊢ <;> exact ih h1
+
+private theorem noEndTurn_mkLoopTrace (p2 p3 : List CardInstance) :
+    noEndTurn (mkLoopTrace p2 p3) = true := by
+  unfold mkLoopTrace
+  apply noEndTurn_append
+  · apply noEndTurn_append
+    · apply noEndTurn_append
+      · apply noEndTurn_append
+        · native_decide
+        · exact noEndTurn_draw_map p2
+      · native_decide
+    · exact noEndTurn_draw_map p3
+  · native_decide
+
 -- ============================================================
--- PER-CASE LOOP PROOF
+-- PER-CASE LOOP PROOF (variant A: 2-elem perm [ci1, ci2])
 -- ============================================================
 
-private theorem loop_case (oracle : ShuffleOracle) (hv : validOracle oracle)
+private theorem loop_caseA (oracle : ShuffleOracle) (hv : validOracle oracle)
     (a b c : CardInstance)
-    (h : oracle 2 [ci2, ci1, ci3] = [a, b, c])
-    (h_fd : drawCardL2 (fun _ _ => [a, b, c]) 2 s7_clean a.id = some (s_d1 a b c, 3))
+    (h2 : oracle 1 [ci1, ci2] = [ci1, ci2])
+    (h3 : oracle 2 [ci2, ci1, ci3] = [a, b, c])
+    (h_fd3 : drawCardL2 (fun _ _ => [a, b, c]) 2 s7_cleanA a.id = some (s_d1 a b c, 3))
     (h_tail : executeL2 cardDB (fun _ _ => []) 3 (s_d3 a b c)
       [.play 7, .play 8] = some (stateB_of a b c, 3)) :
-    executeL2 cardDB oracle 0 stateA (mkLoopTrace [a, b, c]) = some (stateB_of a b c, 3) := by
+    executeL2 cardDB oracle 0 stateA (mkLoopTrace [ci1, ci2] [a, b, c]) = some (stateB_of a b c, 3) := by
   show executeL2 cardDB oracle 0 stateA
-    ([.play 3, .draw 0, .failDraw, .discard 2, .draw 2, .failDraw, .play 0,
+    ([.play 3, .draw 0, .failDraw, .discard 2, .discard 1,
+      .draw 1, .draw 2, .failDraw, .play 0,
       .draw a.id, .draw b.id, .draw c.id,
       .play 7, .play 8]) = some (stateB_of a b c, 3)
   -- play Prepared+(3)
   rw [exL2_cons hc_stateA (sL2_step (by intro c; simp) hs_play_prep)]
-  -- draw SoS(0) — singleton shuffle
+  -- draw SoS(0)
   rw [exL2_cons hc_s1 (sL2_draw (step_draw0 oracle hv))]
   -- failDraw
   rw [exL2_cons hc_s2 (sL2_step (by intro c; simp) hs_failDraw1)]
   -- discard Reflex(2)
   rw [exL2_cons hc_s3 (sL2_step (by intro c; simp) hs_discard2)]
-  -- draw Reflex(2) — singleton shuffle
-  rw [exL2_cons hc_s4 (sL2_draw (step_draw2 oracle hv))]
-  -- failDraw → s5_fd
-  rw [exL2_cons hc_s5 (sL2_step (by intro c; simp) hs_failDraw2)]
-  -- play SoS(0) → s7_raw (cleanup s5_fd → s6, then step s6 → s7_raw)
-  rw [exL2_cons hc_s5_fd (sL2_step (by intro c; simp) hs_play_storm)]
-  -- draw a: oracle-dependent, 3-element shuffle
-  have hd_a : drawCardL2 oracle 2 s7_clean a.id = some (s_d1 a b c, 3) := by
+  -- discard Tactician(1)
+  rw [exL2_cons hc_s4 (sL2_step (by intro c; simp) hs_discard1)]
+  -- draw ci1: 2-element shuffle
+  have h2' := h2; simp only [ci1, ci2] at h2'
+  have hd_d : drawCardL2 oracle 1 s4b 1 = some (s5_2 ci1 ci2, 2) := by
     unfold drawCardL2
-    simp only [s7_clean]
-    rw [h]; exact h_fd ▸ rfl
-  rw [exL2_cons hc_s7_raw (sL2_draw hd_a)]
-  -- draw b (oracle-independent)
+    simp only [s4b, ci0, ci1, ci2, ci3]
+    rw [h2']; exact fd2_12 ▸ rfl
+  rw [exL2_cons hc_s4b (sL2_draw hd_d)]
+  -- draw ci2: drawPile non-empty
+  rw [exL2_cons (hc_s5_2 ci1 ci2) (sL2_draw (sd2_2elem_12 oracle))]
+  -- failDraw
+  rw [exL2_cons (hc_s5_3 ci1 ci2) (sL2_step (by intro c; simp) hs_failDraw2_12)]
+  -- play SoS(0)
+  rw [exL2_cons hc_s5_fd_12 (sL2_step (by intro c; simp) hs_play_storm_12)]
+  -- draw a: 3-element shuffle
+  have h3' := h3; simp only [ci1, ci2, ci3] at h3'
+  have hd_a : drawCardL2 oracle 2 s7_cleanA a.id = some (s_d1 a b c, 3) := by
+    unfold drawCardL2
+    simp only [s7_cleanA, ci0, ci1, ci2, ci3]
+    rw [h3']; exact h_fd3 ▸ rfl
+  rw [exL2_cons hc_s7_raw_A (sL2_draw hd_a)]
+  -- draw b
   rw [exL2_cons (hc_d1 a b c) (sL2_draw (sd2_oracle oracle a b c))]
-  -- draw c (oracle-independent)
+  -- draw c
   rw [exL2_cons (hc_d2 a b c) (sL2_draw (sd3_oracle oracle a b c))]
-  -- play Shiv7, play Shiv8 (oracle-independent, resolveInUse handled inside executeL2)
+  -- play Shiv7, play Shiv8
+  rw [tail_oracle_indep oracle (fun _ _ => []) 3 (s_d3 a b c)]
+  exact h_tail
+
+-- ============================================================
+-- PER-CASE LOOP PROOF (variant B: 2-elem perm [ci2, ci1])
+-- ============================================================
+
+private theorem loop_caseB (oracle : ShuffleOracle) (hv : validOracle oracle)
+    (a b c : CardInstance)
+    (h2 : oracle 1 [ci1, ci2] = [ci2, ci1])
+    (h3 : oracle 2 [ci1, ci2, ci3] = [a, b, c])
+    (h_fd3 : drawCardL2 (fun _ _ => [a, b, c]) 2 s7_cleanB a.id = some (s_d1 a b c, 3))
+    (h_tail : executeL2 cardDB (fun _ _ => []) 3 (s_d3 a b c)
+      [.play 7, .play 8] = some (stateB_of a b c, 3)) :
+    executeL2 cardDB oracle 0 stateA (mkLoopTrace [ci2, ci1] [a, b, c]) = some (stateB_of a b c, 3) := by
+  show executeL2 cardDB oracle 0 stateA
+    ([.play 3, .draw 0, .failDraw, .discard 2, .discard 1,
+      .draw 2, .draw 1, .failDraw, .play 0,
+      .draw a.id, .draw b.id, .draw c.id,
+      .play 7, .play 8]) = some (stateB_of a b c, 3)
+  -- play Prepared+(3)
+  rw [exL2_cons hc_stateA (sL2_step (by intro c; simp) hs_play_prep)]
+  -- draw SoS(0)
+  rw [exL2_cons hc_s1 (sL2_draw (step_draw0 oracle hv))]
+  -- failDraw
+  rw [exL2_cons hc_s2 (sL2_step (by intro c; simp) hs_failDraw1)]
+  -- discard Reflex(2)
+  rw [exL2_cons hc_s3 (sL2_step (by intro c; simp) hs_discard2)]
+  -- discard Tactician(1)
+  rw [exL2_cons hc_s4 (sL2_step (by intro c; simp) hs_discard1)]
+  -- draw ci2: 2-element shuffle
+  have h2' := h2; simp only [ci1, ci2] at h2'
+  have hd_d : drawCardL2 oracle 1 s4b 2 = some (s5_2 ci2 ci1, 2) := by
+    unfold drawCardL2
+    simp only [s4b, ci0, ci1, ci2, ci3]
+    rw [h2']; exact fd2_21 ▸ rfl
+  rw [exL2_cons hc_s4b (sL2_draw hd_d)]
+  -- draw ci1: drawPile non-empty
+  rw [exL2_cons (hc_s5_2 ci2 ci1) (sL2_draw (sd2_2elem_21 oracle))]
+  -- failDraw
+  rw [exL2_cons (hc_s5_3 ci2 ci1) (sL2_step (by intro c; simp) hs_failDraw2_21)]
+  -- play SoS(0)
+  rw [exL2_cons hc_s5_fd_21 (sL2_step (by intro c; simp) hs_play_storm_21)]
+  -- draw a: 3-element shuffle
+  have h3' := h3; simp only [ci1, ci2, ci3] at h3'
+  have hd_a : drawCardL2 oracle 2 s7_cleanB a.id = some (s_d1 a b c, 3) := by
+    unfold drawCardL2
+    simp only [s7_cleanB, ci0, ci1, ci2, ci3]
+    rw [h3']; exact h_fd3 ▸ rfl
+  rw [exL2_cons hc_s7_raw_B (sL2_draw hd_a)]
+  -- draw b
+  rw [exL2_cons (hc_d1 a b c) (sL2_draw (sd2_oracle oracle a b c))]
+  -- draw c
+  rw [exL2_cons (hc_d2 a b c) (sL2_draw (sd3_oracle oracle a b c))]
+  -- play Shiv7, play Shiv8
   rw [tail_oracle_indep oracle (fun _ _ => []) 3 (s_d3 a b c)]
   exact h_tail
 
@@ -629,14 +797,30 @@ theorem ComboStormOfSteel_guaranteed_infinite :
     GuaranteedInfiniteCombo cardDB cards enemy := by
   refine ⟨setupTrace, stateA, setup_ok, ?_⟩
   intro oracle h_valid
-  have h_perm := h_valid 2 [ci2, ci1, ci3]
-  have h_cases := perm_3_cases (oracle 2 [ci2, ci1, ci3]) h_perm
-  rcases h_cases with h | h | h | h | h | h
-  · exact ⟨_, _, _, loop_case oracle h_valid ci2 ci1 ci3 h fd_213 tail_213, sm_213, dd_213⟩
-  · exact ⟨_, _, _, loop_case oracle h_valid ci2 ci3 ci1 h fd_231 tail_231, sm_231, dd_231⟩
-  · exact ⟨_, _, _, loop_case oracle h_valid ci1 ci2 ci3 h fd_123 tail_123, sm_123, dd_123⟩
-  · exact ⟨_, _, _, loop_case oracle h_valid ci1 ci3 ci2 h fd_132 tail_132, sm_132, dd_132⟩
-  · exact ⟨_, _, _, loop_case oracle h_valid ci3 ci2 ci1 h fd_321 tail_321, sm_321, dd_321⟩
-  · exact ⟨_, _, _, loop_case oracle h_valid ci3 ci1 ci2 h fd_312 tail_312, sm_312, dd_312⟩
+  -- 2-element shuffle at index 1
+  have h_perm2 := h_valid 1 [ci1, ci2]
+  have h_cases2 := perm_2_cases (oracle 1 [ci1, ci2]) h_perm2
+  rcases h_cases2 with h2 | h2
+  · -- Case A: oracle 1 [ci1, ci2] = [ci1, ci2]
+    have h_perm3 := h_valid 2 [ci2, ci1, ci3]
+    have h_cases3 := perm_3_cases (oracle 2 [ci2, ci1, ci3]) h_perm3
+    rcases h_cases3 with h3 | h3 | h3 | h3 | h3 | h3
+    · exact ⟨_, _, _, loop_caseA oracle h_valid ci2 ci1 ci3 h2 h3 fdA_213 tail_213, noEndTurn_mkLoopTrace _ _, sm_213, dd_213⟩
+    · exact ⟨_, _, _, loop_caseA oracle h_valid ci2 ci3 ci1 h2 h3 fdA_231 tail_231, noEndTurn_mkLoopTrace _ _, sm_231, dd_231⟩
+    · exact ⟨_, _, _, loop_caseA oracle h_valid ci1 ci2 ci3 h2 h3 fdA_123 tail_123, noEndTurn_mkLoopTrace _ _, sm_123, dd_123⟩
+    · exact ⟨_, _, _, loop_caseA oracle h_valid ci1 ci3 ci2 h2 h3 fdA_132 tail_132, noEndTurn_mkLoopTrace _ _, sm_132, dd_132⟩
+    · exact ⟨_, _, _, loop_caseA oracle h_valid ci3 ci2 ci1 h2 h3 fdA_321 tail_321, noEndTurn_mkLoopTrace _ _, sm_321, dd_321⟩
+    · exact ⟨_, _, _, loop_caseA oracle h_valid ci3 ci1 ci2 h2 h3 fdA_312 tail_312, noEndTurn_mkLoopTrace _ _, sm_312, dd_312⟩
+  · -- Case B: oracle 1 [ci1, ci2] = [ci2, ci1]
+    have h_perm3 : (oracle 2 [ci1, ci2, ci3]).Perm [ci2, ci1, ci3] :=
+      (h_valid 2 [ci1, ci2, ci3]).trans (by decide)
+    have h_cases3 := perm_3_cases (oracle 2 [ci1, ci2, ci3]) h_perm3
+    rcases h_cases3 with h3 | h3 | h3 | h3 | h3 | h3
+    · exact ⟨_, _, _, loop_caseB oracle h_valid ci2 ci1 ci3 h2 h3 fdB_213 tail_213, noEndTurn_mkLoopTrace _ _, sm_213, dd_213⟩
+    · exact ⟨_, _, _, loop_caseB oracle h_valid ci2 ci3 ci1 h2 h3 fdB_231 tail_231, noEndTurn_mkLoopTrace _ _, sm_231, dd_231⟩
+    · exact ⟨_, _, _, loop_caseB oracle h_valid ci1 ci2 ci3 h2 h3 fdB_123 tail_123, noEndTurn_mkLoopTrace _ _, sm_123, dd_123⟩
+    · exact ⟨_, _, _, loop_caseB oracle h_valid ci1 ci3 ci2 h2 h3 fdB_132 tail_132, noEndTurn_mkLoopTrace _ _, sm_132, dd_132⟩
+    · exact ⟨_, _, _, loop_caseB oracle h_valid ci3 ci2 ci1 h2 h3 fdB_321 tail_321, noEndTurn_mkLoopTrace _ _, sm_321, dd_321⟩
+    · exact ⟨_, _, _, loop_caseB oracle h_valid ci3 ci1 ci2 h2 h3 fdB_312 tail_312, noEndTurn_mkLoopTrace _ _, sm_312, dd_312⟩
 
 end ComboStormOfSteel_L2

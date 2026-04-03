@@ -126,10 +126,11 @@ theorem loop_ok :
     execute cardDB stateA loopTrace = some stateB := by
   native_decide
 
+theorem no_end : noEndTurn loopTrace = true := by native_decide
 theorem same_mod : sameModAccum stateA stateB = true := by native_decide
 theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 
 theorem ComboDropkickExhaust_infinite : InfiniteCombo cardDB allCards enemy :=
-  ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, same_mod, dealt_dmg⟩
+  ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
 end ComboDropkickExhaust

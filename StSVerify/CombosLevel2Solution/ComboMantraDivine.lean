@@ -125,6 +125,13 @@ theorem setup_ok :
 theorem same_mod : sameModAccum stateA stateB = true := by native_decide
 theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 
+private theorem no_end_384 : noEndTurn (mkLoopTrace [ci3, ci8, ci4]) = true := by native_decide
+private theorem no_end_348 : noEndTurn (mkLoopTrace [ci3, ci4, ci8]) = true := by native_decide
+private theorem no_end_834 : noEndTurn (mkLoopTrace [ci8, ci3, ci4]) = true := by native_decide
+private theorem no_end_843 : noEndTurn (mkLoopTrace [ci8, ci4, ci3]) = true := by native_decide
+private theorem no_end_438 : noEndTurn (mkLoopTrace [ci4, ci3, ci8]) = true := by native_decide
+private theorem no_end_483 : noEndTurn (mkLoopTrace [ci4, ci8, ci3]) = true := by native_decide
+
 -- ============================================================
 -- PERMUTATION ENUMERATION (3-element)
 -- ============================================================
@@ -423,11 +430,11 @@ theorem ComboMantraDivine_guaranteed_infinite :
   have h_perm := h_valid 0 [ci3, ci8, ci4]
   have h_cases := perm_384_cases (oracle 0 [ci3, ci8, ci4]) h_perm
   rcases h_cases with h | h | h | h | h | h
-  · exact ⟨_, _, _, loop_case oracle ci3 ci8 ci4 h fd_384 tail_384, same_mod, dealt_dmg⟩
-  · exact ⟨_, _, _, loop_case oracle ci3 ci4 ci8 h fd_348 tail_348, same_mod, dealt_dmg⟩
-  · exact ⟨_, _, _, loop_case oracle ci8 ci3 ci4 h fd_834 tail_834, same_mod, dealt_dmg⟩
-  · exact ⟨_, _, _, loop_case oracle ci8 ci4 ci3 h fd_843 tail_843, same_mod, dealt_dmg⟩
-  · exact ⟨_, _, _, loop_case oracle ci4 ci3 ci8 h fd_438 tail_438, same_mod, dealt_dmg⟩
-  · exact ⟨_, _, _, loop_case oracle ci4 ci8 ci3 h fd_483 tail_483, same_mod, dealt_dmg⟩
+  · exact ⟨_, _, _, loop_case oracle ci3 ci8 ci4 h fd_384 tail_384, no_end_384, same_mod, dealt_dmg⟩
+  · exact ⟨_, _, _, loop_case oracle ci3 ci4 ci8 h fd_348 tail_348, no_end_348, same_mod, dealt_dmg⟩
+  · exact ⟨_, _, _, loop_case oracle ci8 ci3 ci4 h fd_834 tail_834, no_end_834, same_mod, dealt_dmg⟩
+  · exact ⟨_, _, _, loop_case oracle ci8 ci4 ci3 h fd_843 tail_843, no_end_843, same_mod, dealt_dmg⟩
+  · exact ⟨_, _, _, loop_case oracle ci4 ci3 ci8 h fd_438 tail_438, no_end_438, same_mod, dealt_dmg⟩
+  · exact ⟨_, _, _, loop_case oracle ci4 ci8 ci3 h fd_483 tail_483, no_end_483, same_mod, dealt_dmg⟩
 
 end ComboMantraDivine_L2
