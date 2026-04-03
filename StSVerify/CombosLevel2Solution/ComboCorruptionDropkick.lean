@@ -40,23 +40,24 @@ def bash : CardInstance := { id := 3, name := BashPlus, cost := 2, damage := 10 
 -- ============================================================
 
 def setupTrace : List Action := [
-  -- Turn 1
-  .draw 11, .draw 0, .draw 1, .draw 9, .draw 8,
+  -- Turn 1: play powers + exhaust junk
+  .draw 11, .draw 0, .draw 1, .draw 2, .draw 8,
   .play 11,                       -- Offering (0E): +2E, draw 3, exhaust self
-  .draw 12, .draw 2, .draw 3,
-  .play 0, .play 1, .play 9,     -- Corruption(3E), DarkEmbrace+(1E), Metallicize+(1E)
+  .draw 9, .draw 12, .draw 3,
+  .play 0, .play 1, .play 2,     -- Corruption(3E), DarkEmbrace+(1E), FeelNoPain+(1E)
   .play 8,                        -- TrueGrit+ (0 cost, corruption): +9blk, exhaust 1, self exhausts
   .exhaust 12,                    -- Exhaust BattleTrance+ -> DE+1 draw, FNP+4 block
-  .draw 4, .draw 5,              -- Draw both Dropkicks
+  .draw 4, .draw 5,              -- Draw both Dropkicks (2 draws: DE on TG+ exhaust + DE on BT+ exhaust)
   .endTurn,
-  -- Turn 2
+  -- Turn 2: play Met+, exhaust remaining junk, establish loop
   .draw 6, .draw 7, .draw 10,
-  .draw 2, .draw 3,              -- shuffle discard -> draw first
-  .play 2,                        -- FeelNoPain+ (1E, power)
+  .draw 9, .draw 4,              -- shuffle discard -> draw; draw Met+ and DK#1
+  .play 9,                        -- Metallicize+ (1E, power)
   .play 6,                        -- ShrugItOff#1 (0 cost, corruption): +8blk, draw 1, exhausts -> DE+1, FNP+4
-  .draw 4, .draw 5,              -- DE draw + SIO draw
+  .draw 5, .draw 3,              -- SIO draw + DE draw
   .play 7,                        -- ShrugItOff#2 (0 cost, corruption): +8blk, draw 1, exhausts -> DE+1, FNP+4
-  .failDraw,                      -- piles empty
+  .failDraw,                      -- piles empty (first draw)
+  .failDraw,                      -- piles empty (DE draw after resolveCard 7)
   .play 10,                       -- Impervious+ (0 cost, corruption): +40blk, exhausts -> DE+1, FNP+4
   .failDraw,                      -- piles empty
   .play 5,                        -- DK#2: 7dmg, +1E, +1draw
@@ -66,10 +67,10 @@ def setupTrace : List Action := [
 ]
 
 def loopTrace : List Action := [
-  .play 5,                        -- DK#2: 7dmg, +1E, +1draw
-  .draw 4,                        -- shuffle DK#1 from discard->draw, draw DK#1
-  .play 4,                        -- DK#1: 7dmg, +1E, +1draw
-  .draw 5                         -- shuffle DK#2 from discard->draw, draw DK#2
+  .play 5,                        -- DK#2: 7dmg, +1E, +1draw; queue=[draw, resolveCard 5]
+  .draw 4,                        -- shuffle DK#1 from discard->draw, draw DK#1; autoDrain resolves dk2->discard
+  .play 4,                        -- DK#1: 7dmg, +1E, +1draw; queue=[draw, resolveCard 4]
+  .draw 5                         -- shuffle DK#2 from discard->draw, draw DK#2; autoDrain resolves dk1->discard
 ]
 
 def stateA : GameState := {
@@ -92,7 +93,7 @@ def stateA : GameState := {
   orbSlots := 3
   focus := 0
   enemy := { vulnerable := 3, weak := 0, intending := false }
-  activePowers := [FeelNoPainPlus, MetallicizePlus, DarkEmbracePlus, Corruption]
+  activePowers := [MetallicizePlus, FeelNoPainPlus, DarkEmbracePlus, Corruption]
   nextId := 13
   noDraw := false
   corruptionActive := true
@@ -101,14 +102,14 @@ def stateA : GameState := {
 def stateB : GameState :=
   { stateA with damage := 28 }
 
--- Intermediate: after play DK#2 (card in inUse, actionQueue has draw)
+-- Intermediate: after play DK#2 (card in inUse, queue=[draw, resolveCard 5])
 def stateS1 : GameState := {
   hand := [bash]
   drawPile := []
   discardPile := [dk1]
   exhaustPile := stateA.exhaustPile
   inUse := [dk2]
-  actionQueue := [.draw]
+  actionQueue := [.draw, .resolveCard 5]
   energy := 2
   damage := 21
   block := 68
@@ -117,20 +118,20 @@ def stateS1 : GameState := {
   orbSlots := 3
   focus := 0
   enemy := { vulnerable := 3, weak := 0, intending := false }
-  activePowers := [FeelNoPainPlus, MetallicizePlus, DarkEmbracePlus, Corruption]
+  activePowers := [MetallicizePlus, FeelNoPainPlus, DarkEmbracePlus, Corruption]
   nextId := 13
   noDraw := false
   corruptionActive := true
 }
 
--- Raw state after draw DK#1 (before resolveInUse): inUse still has DK#2
+-- Raw state after draw DK#1 (before autoDrain resolves resolveCard 5)
 def stateR2 : GameState := {
   hand := [dk1, bash]
   drawPile := []
   discardPile := []
   exhaustPile := stateA.exhaustPile
   inUse := [dk2]
-  actionQueue := []
+  actionQueue := [.resolveCard 5]
   energy := 2
   damage := 21
   block := 68
@@ -139,13 +140,13 @@ def stateR2 : GameState := {
   orbSlots := 3
   focus := 0
   enemy := { vulnerable := 3, weak := 0, intending := false }
-  activePowers := [FeelNoPainPlus, MetallicizePlus, DarkEmbracePlus, Corruption]
+  activePowers := [MetallicizePlus, FeelNoPainPlus, DarkEmbracePlus, Corruption]
   nextId := 13
   noDraw := false
   corruptionActive := true
 }
 
--- After resolveInUse: DK#2 moves to discard
+-- After autoDrain resolves resolveCard 5: DK#2 moves to discard
 def stateS2 : GameState := {
   hand := [dk1, bash]
   drawPile := []
@@ -161,20 +162,20 @@ def stateS2 : GameState := {
   orbSlots := 3
   focus := 0
   enemy := { vulnerable := 3, weak := 0, intending := false }
-  activePowers := [FeelNoPainPlus, MetallicizePlus, DarkEmbracePlus, Corruption]
+  activePowers := [MetallicizePlus, FeelNoPainPlus, DarkEmbracePlus, Corruption]
   nextId := 13
   noDraw := false
   corruptionActive := true
 }
 
--- After play DK#1 (card in inUse, actionQueue has draw)
+-- After play DK#1 (card in inUse, queue=[draw, resolveCard 4])
 def stateS3 : GameState := {
   hand := [bash]
   drawPile := []
   discardPile := [dk2]
   exhaustPile := stateA.exhaustPile
   inUse := [dk1]
-  actionQueue := [.draw]
+  actionQueue := [.draw, .resolveCard 4]
   energy := 2
   damage := 28
   block := 68
@@ -183,20 +184,20 @@ def stateS3 : GameState := {
   orbSlots := 3
   focus := 0
   enemy := { vulnerable := 3, weak := 0, intending := false }
-  activePowers := [FeelNoPainPlus, MetallicizePlus, DarkEmbracePlus, Corruption]
+  activePowers := [MetallicizePlus, FeelNoPainPlus, DarkEmbracePlus, Corruption]
   nextId := 13
   noDraw := false
   corruptionActive := true
 }
 
--- Raw state after draw DK#2 (before resolveInUse): inUse still has DK#1
+-- Raw state after draw DK#2 (before autoDrain resolves resolveCard 4)
 def stateR4 : GameState := {
   hand := [dk2, bash]
   drawPile := []
   discardPile := []
   exhaustPile := stateA.exhaustPile
   inUse := [dk1]
-  actionQueue := []
+  actionQueue := [.resolveCard 4]
   energy := 2
   damage := 28
   block := 68
@@ -205,7 +206,7 @@ def stateR4 : GameState := {
   orbSlots := 3
   focus := 0
   enemy := { vulnerable := 3, weak := 0, intending := false }
-  activePowers := [FeelNoPainPlus, MetallicizePlus, DarkEmbracePlus, Corruption]
+  activePowers := [MetallicizePlus, FeelNoPainPlus, DarkEmbracePlus, Corruption]
   nextId := 13
   noDraw := false
   corruptionActive := true
@@ -228,15 +229,15 @@ private theorem perm_singleton_eq (a : CardInstance) (l : List CardInstance)
     (h : List.Perm l [a]) : l = [a] :=
   List.perm_singleton.mp h
 
--- autoDrain/resolveInUse identity lemmas
-private theorem clean_stateA : resolveInUse cardDB (autoDrain cardDB stateA) = stateA := by
+-- Clean state lemmas (autoDrain handles resolveCard)
+private theorem clean_stateA : autoDrain cardDB stateA = stateA := by
   native_decide
 
 -- Step 1: play DK#2 -> stateS1
 private theorem step1_play :
     step cardDB stateA (.play 5) = some stateS1 := by native_decide
 
-private theorem clean_stateS1 : resolveInUse cardDB (autoDrain cardDB stateS1) = stateS1 := by
+private theorem clean_stateS1 : autoDrain cardDB stateS1 = stateS1 := by
   native_decide
 
 -- Step 2: draw DK#1 with oracle (singleton shuffle)
@@ -249,17 +250,15 @@ private theorem step2_draw_raw (oracle : ShuffleOracle) (hValid : validOracle or
   rw [hp]
   native_decide
 
-private theorem clean_stateR2 : resolveInUse cardDB (autoDrain cardDB stateR2) = stateS2 := by
-  native_decide
-
-private theorem clean_stateS2 : resolveInUse cardDB (autoDrain cardDB stateS2) = stateS2 := by
+-- autoDrain on stateR2 resolves resolveCard 5 -> stateS2
+private theorem clean_stateR2 : autoDrain cardDB stateR2 = stateS2 := by
   native_decide
 
 -- Step 3: play DK#1 -> stateS3
 private theorem step3_play :
     step cardDB stateS2 (.play 4) = some stateS3 := by native_decide
 
-private theorem clean_stateS3 : resolveInUse cardDB (autoDrain cardDB stateS3) = stateS3 := by
+private theorem clean_stateS3 : autoDrain cardDB stateS3 = stateS3 := by
   native_decide
 
 -- Step 4: draw DK#2 with oracle (singleton shuffle)
@@ -272,7 +271,8 @@ private theorem step4_draw_raw (oracle : ShuffleOracle) (hValid : validOracle or
   rw [hp]
   native_decide
 
-private theorem clean_stateR4 : resolveInUse cardDB (autoDrain cardDB stateR4) = stateB := by
+-- autoDrain on stateR4 resolves resolveCard 4 -> stateB
+private theorem clean_stateR4 : autoDrain cardDB stateR4 = stateB := by
   native_decide
 
 -- Main loop theorem (NO native_decide -- only rw/simp)

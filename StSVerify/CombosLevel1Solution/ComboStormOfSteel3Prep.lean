@@ -40,11 +40,11 @@ def setupTrace : List Action := [
 def loopTrace : List Action := [
   .play 5,                          -- Prepared+: draw 2, discard 2
   .draw 4, .draw 3,                -- draw Prep2(4), Prep1(3) from drawPile
-  .discard 2,                       -- discard Reflex (trigger: draw 3)
-  .discard 1,                       -- discard Tact (trigger: +2E)
-  .draw 0, .draw 1, .draw 2,       -- draw 3 from shuffled discard {SoS, Tact, Reflex}
-  .play 0,                          -- SoS: discard 4 hand cards, 4 Shivs (10,11,12,13)
-  .draw 2, .draw 1, .draw 4,       -- draw 3 from shuffled 5-card discard
+  .discard 2,                       -- discard Reflex (trigger: draw 3 bottom)
+  .discard 1,                       -- discard Tact (trigger: +2E); resolveCard 5 auto -> Prep3 discard
+  .draw 0, .draw 1, .draw 2,       -- draw SoS from drawPile, shuffle, draw Tact, Reflex
+  .play 0,                          -- SoS: 4 hand cards -> 4 Shivs (10,11,12,13); autoDrain all
+  .draw 5, .draw 1, .draw 2,       -- draw Prep3 from drawPile, shuffle, draw Tact, Reflex
   .play 10, .play 11, .play 12, .play 13  -- play 4 Shivs (16 dmg)
 ]
 
@@ -52,9 +52,10 @@ def stateA : GameState := {
   hand := [{ id := 2, name := ReflexPlus, cost := 0, damage := 0 },
            { id := 1, name := TacticianPlus, cost := 0, damage := 0 },
            { id := 5, name := PreparedPlus, cost := 0, damage := 0 }]
-  drawPile := [{ id := 4, name := PreparedPlus, cost := 0, damage := 0 },
+  drawPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 },
+               { id := 4, name := PreparedPlus, cost := 0, damage := 0 },
                { id := 3, name := PreparedPlus, cost := 0, damage := 0 }]
-  discardPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 }]
+  discardPile := []
   exhaustPile := [{ id := 9, name := Shiv, cost := 0, damage := 4 },
                   { id := 8, name := Shiv, cost := 0, damage := 4 },
                   { id := 7, name := Shiv, cost := 0, damage := 4 },
@@ -76,12 +77,13 @@ def stateA : GameState := {
 }
 
 def stateB : GameState := {
-  hand := [{ id := 4, name := PreparedPlus, cost := 0, damage := 0 },
+  hand := [{ id := 2, name := ReflexPlus, cost := 0, damage := 0 },
            { id := 1, name := TacticianPlus, cost := 0, damage := 0 },
-           { id := 2, name := ReflexPlus, cost := 0, damage := 0 }]
-  drawPile := [{ id := 3, name := PreparedPlus, cost := 0, damage := 0 },
-               { id := 5, name := PreparedPlus, cost := 0, damage := 0 }]
-  discardPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 }]
+           { id := 5, name := PreparedPlus, cost := 0, damage := 0 }]
+  drawPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 },
+               { id := 3, name := PreparedPlus, cost := 0, damage := 0 },
+               { id := 4, name := PreparedPlus, cost := 0, damage := 0 }]
+  discardPile := []
   exhaustPile := [{ id := 13, name := Shiv, cost := 0, damage := 4 },
                   { id := 12, name := Shiv, cost := 0, damage := 4 },
                   { id := 11, name := Shiv, cost := 0, damage := 4 },

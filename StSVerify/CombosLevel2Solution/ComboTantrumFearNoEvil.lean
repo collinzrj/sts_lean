@@ -187,7 +187,7 @@ private def drawCondBool (fo : ShuffleOracle) (p1 p2 : List CardInstance)
     (si : Nat) (s : GameState) : List Action → Bool
   | [] => true
   | a :: rest =>
-    let sc := resolveInUse cardDB (autoDrain cardDB s)
+    let sc := autoDrain cardDB s
     let dpOk := match a with
       | .draw _ => sc.drawPile.length > 0 ||
                    (decide (si = 0) && decide (sc.discardPile = p1)) ||
@@ -210,17 +210,17 @@ private theorem drawCondBool_bridge (oracle fo : ShuffleOracle) (p1 p2 : List Ca
   | cons a rest ih =>
     simp only [drawCondBool] at hb
     -- stepL2 fo must succeed
-    match hfo : stepL2 cardDB fo si (resolveInUse cardDB (autoDrain cardDB s)) a with
+    match hfo : stepL2 cardDB fo si (autoDrain cardDB s) a with
     | none => rw [hfo] at hb; simp at hb
     | some (s', si') =>
       rw [hfo] at hb; simp only [Bool.and_eq_true] at hb; obtain ⟨hdpOk, hrest⟩ := hb
       -- stepL2 oracle = stepL2 fo
-      have h_step_eq : stepL2 cardDB oracle si (resolveInUse cardDB (autoDrain cardDB s)) a =
-                       stepL2 cardDB fo si (resolveInUse cardDB (autoDrain cardDB s)) a := by
+      have h_step_eq : stepL2 cardDB oracle si (autoDrain cardDB s) a =
+                       stepL2 cardDB fo si (autoDrain cardDB s) a := by
         cases a with
         | draw c =>
           apply stepL2_oracle_cond
-          by_cases hdp : (resolveInUse cardDB (autoDrain cardDB s)).drawPile = []
+          by_cases hdp : (autoDrain cardDB s).drawPile = []
           · right
             simp only [hdp, List.length_nil, Nat.lt_irrefl, gt_iff_lt, false_or,
                        Bool.or_eq_true, decide_eq_true_eq, Bool.and_eq_true] at hdpOk
@@ -230,10 +230,10 @@ private theorem drawCondBool_bridge (oracle fo : ShuffleOracle) (p1 p2 : List Ca
           · left; exact hdp
         | _ => rfl
       -- Rewrite
-      change (let sc := resolveInUse cardDB (autoDrain cardDB s)
+      change (let sc := autoDrain cardDB s
               match stepL2 cardDB oracle si sc a with
               | none => none | some (s'', si'') => executeL2 cardDB oracle si'' s'' rest) =
-             (let sc := resolveInUse cardDB (autoDrain cardDB s)
+             (let sc := autoDrain cardDB s
               match stepL2 cardDB fo si sc a with
               | none => none | some (s'', si'') => executeL2 cardDB fo si'' s'' rest)
       simp only [h_step_eq, hfo]

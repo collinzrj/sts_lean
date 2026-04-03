@@ -146,40 +146,26 @@ theorem no_end : noEndTurn loopTrace = true := by native_decide
 theorem same_mod : sameModAccum stateA stateB = true := by native_decide
 theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 
--- Loop intermediate states (careful about resolveInUse behavior)
--- State after step returns from play 0 (Streamline in inUse)
+-- Loop intermediate states
+-- After play 0 (Streamline+): inUse=[sl], q=[resolveCard 0]
+-- autoDrain resolves -> sl to discard
 private def t1 : GameState := {
-  hand := [h2, h1], drawPile := [], discardPile := [], exhaustPile := exhaust_,
-  inUse := [sl], actionQueue := [], energy := 2, damage := 60, block := 10,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
-
--- After resolveInUse on t1: Streamline to discard
-private def t1r : GameState := {
   hand := [h2, h1], drawPile := [], discardPile := [sl], exhaustPile := exhaust_,
   inUse := [], actionQueue := [], energy := 2, damage := 60, block := 10,
   stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
   enemy := { vulnerable := 0, weak := 0, intending := false },
   activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
 
--- After step play 1 (Hologram+ in inUse, +5 block)
+-- After play 1 (Hologram+): inUse=[h1], q=[resolveCard 1]
+-- autoDrain resolves -> h1 to discard
 private def t2 : GameState := {
-  hand := [h2], drawPile := [], discardPile := [sl], exhaustPile := exhaust_,
-  inUse := [h1], actionQueue := [], energy := 2, damage := 60, block := 15,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
-
--- After resolveInUse on t2: Holo1 to discard
-private def t2r : GameState := {
   hand := [h2], drawPile := [], discardPile := [h1, sl], exhaustPile := exhaust_,
   inUse := [], actionQueue := [], energy := 2, damage := 60, block := 15,
   stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
   enemy := { vulnerable := 0, weak := 0, intending := false },
   activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
 
--- After step hologramChoose 0 (retrieve Streamline from discard)
+-- After hologramChoose 0 (retrieve Streamline)
 private def t3 : GameState := {
   hand := [sl, h2], drawPile := [], discardPile := [h1], exhaustPile := exhaust_,
   inUse := [], actionQueue := [], energy := 2, damage := 60, block := 15,
@@ -187,23 +173,16 @@ private def t3 : GameState := {
   enemy := { vulnerable := 0, weak := 0, intending := false },
   activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
 
--- After step play 2 (Holo2 in inUse, +5 block)
+-- After play 2 (Hologram+): inUse=[h2], q=[resolveCard 2]
+-- autoDrain resolves -> h2 to discard
 private def t4 : GameState := {
-  hand := [sl], drawPile := [], discardPile := [h1], exhaustPile := exhaust_,
-  inUse := [h2], actionQueue := [], energy := 2, damage := 60, block := 20,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
-
--- After resolveInUse on t4: Holo2 to discard
-private def t4r : GameState := {
   hand := [sl], drawPile := [], discardPile := [h2, h1], exhaustPile := exhaust_,
   inUse := [], actionQueue := [], energy := 2, damage := 60, block := 20,
   stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
   enemy := { vulnerable := 0, weak := 0, intending := false },
   activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
 
--- After step hologramChoose 1 (retrieve Holo1 from discard)
+-- After hologramChoose 1 (retrieve Holo1)
 private def t5 : GameState := {
   hand := [h1, sl], drawPile := [], discardPile := [h2], exhaustPile := exhaust_,
   inUse := [], actionQueue := [], energy := 2, damage := 60, block := 20,
@@ -211,23 +190,16 @@ private def t5 : GameState := {
   enemy := { vulnerable := 0, weak := 0, intending := false },
   activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
 
--- After step play 0 again (Streamline in inUse)
+-- After play 0 again (Streamline+): inUse=[sl], q=[resolveCard 0]
+-- autoDrain resolves -> sl to discard
 private def t6 : GameState := {
-  hand := [h1], drawPile := [], discardPile := [h2], exhaustPile := exhaust_,
-  inUse := [sl], actionQueue := [], energy := 2, damage := 80, block := 20,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
-
--- After resolveInUse on t6: Streamline to discard
-private def t6r : GameState := {
   hand := [h1], drawPile := [], discardPile := [sl, h2], exhaustPile := exhaust_,
   inUse := [], actionQueue := [], energy := 2, damage := 80, block := 20,
   stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
   enemy := { vulnerable := 0, weak := 0, intending := false },
   activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
 
--- After step hologramChoose 0 (retrieve Streamline from discard)
+-- After hologramChoose 0 (retrieve Streamline)
 private def t7 : GameState := {
   hand := [sl, h1], drawPile := [], discardPile := [h2], exhaustPile := exhaust_,
   inUse := [], actionQueue := [], energy := 2, damage := 80, block := 20,
@@ -235,27 +207,26 @@ private def t7 : GameState := {
   enemy := { vulnerable := 0, weak := 0, intending := false },
   activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
 
--- After step hologramChoose 2 (retrieve Holo2 from discard) = stateB
--- stateB hand = [h2, sl, h1]
+-- After hologramChoose 2 (retrieve Holo2) = stateB
 
--- Step lemmas
-private theorem c0 : resolveInUse cardDB (autoDrain cardDB stateA) = stateA := by native_decide
-private theorem s1 : step cardDB stateA (.play 0) = some t1 := by native_decide
-private theorem c1 : resolveInUse cardDB (autoDrain cardDB t1) = t1r := by native_decide
-private theorem s2 : step cardDB t1r (.play 1) = some t2 := by native_decide
-private theorem c2 : resolveInUse cardDB (autoDrain cardDB t2) = t2r := by native_decide
-private theorem s3 : step cardDB t2r (.hologramChoose 0) = some t3 := by native_decide
-private theorem c3 : resolveInUse cardDB (autoDrain cardDB t3) = t3 := by native_decide
-private theorem s4 : step cardDB t3 (.play 2) = some t4 := by native_decide
-private theorem c4 : resolveInUse cardDB (autoDrain cardDB t4) = t4r := by native_decide
-private theorem s5 : step cardDB t4r (.hologramChoose 1) = some t5 := by native_decide
-private theorem c5 : resolveInUse cardDB (autoDrain cardDB t5) = t5 := by native_decide
-private theorem s6 : step cardDB t5 (.play 0) = some t6 := by native_decide
-private theorem c6 : resolveInUse cardDB (autoDrain cardDB t6) = t6r := by native_decide
-private theorem s7 : step cardDB t6r (.hologramChoose 0) = some t7 := by native_decide
-private theorem c7 : resolveInUse cardDB (autoDrain cardDB t7) = t7 := by native_decide
+-- Step & clean lemmas (autoDrain now handles resolveCard)
+private theorem c0 : autoDrain cardDB stateA = stateA := by native_decide
+private theorem s1 : step cardDB stateA (.play 0) = some { t1 with inUse := [sl], actionQueue := [.resolveCard 0], discardPile := [] } := by native_decide
+private theorem c1 : autoDrain cardDB { t1 with inUse := [sl], actionQueue := [.resolveCard 0], discardPile := [] } = t1 := by native_decide
+private theorem s2 : step cardDB t1 (.play 1) = some { t2 with inUse := [h1], actionQueue := [.resolveCard 1], discardPile := [sl] } := by native_decide
+private theorem c2 : autoDrain cardDB { t2 with inUse := [h1], actionQueue := [.resolveCard 1], discardPile := [sl] } = t2 := by native_decide
+private theorem s3 : step cardDB t2 (.hologramChoose 0) = some t3 := by native_decide
+private theorem c3 : autoDrain cardDB t3 = t3 := by native_decide
+private theorem s4 : step cardDB t3 (.play 2) = some { t4 with inUse := [h2], actionQueue := [.resolveCard 2], discardPile := [h1] } := by native_decide
+private theorem c4 : autoDrain cardDB { t4 with inUse := [h2], actionQueue := [.resolveCard 2], discardPile := [h1] } = t4 := by native_decide
+private theorem s5 : step cardDB t4 (.hologramChoose 1) = some t5 := by native_decide
+private theorem c5 : autoDrain cardDB t5 = t5 := by native_decide
+private theorem s6 : step cardDB t5 (.play 0) = some { t6 with inUse := [sl], actionQueue := [.resolveCard 0], discardPile := [h2] } := by native_decide
+private theorem c6 : autoDrain cardDB { t6 with inUse := [sl], actionQueue := [.resolveCard 0], discardPile := [h2] } = t6 := by native_decide
+private theorem s7 : step cardDB t6 (.hologramChoose 0) = some t7 := by native_decide
+private theorem c7 : autoDrain cardDB t7 = t7 := by native_decide
 private theorem s8 : step cardDB t7 (.hologramChoose 2) = some stateB := by native_decide
-private theorem cB : resolveInUse cardDB (autoDrain cardDB stateB) = stateB := by native_decide
+private theorem cB : autoDrain cardDB stateB = stateB := by native_decide
 
 /-- No draw actions in the loop, so oracle is irrelevant. -/
 theorem loop_executeL2_eq (oracle : ShuffleOracle) :

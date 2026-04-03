@@ -40,18 +40,19 @@ def setupTrace : List Action := [
   .endTurn,
   -- Turn 2
   .draw 6, .draw 7, .draw 10,
-  .draw 2, .draw 3,              -- shuffle discard -> draw first
+  .draw 2, .draw 3,              -- shuffle discard -> draw
   .play 2,                        -- FeelNoPain+ (1E, power)
-  .play 6,                        -- ShrugItOff#1 (0 cost, corruption): +8blk, draw 1, exhausts -> DE+1, FNP+4
-  .draw 4, .draw 5,              -- DE draw + SIO draw
-  .play 7,                        -- ShrugItOff#2 (0 cost, corruption): +8blk, draw 1, exhausts -> DE+1, FNP+4
-  .failDraw,                      -- piles empty
+  .play 6,                        -- ShrugItOff#1 (0 cost, corruption): +8blk, draw+DE draw, exhausts -> FNP+4
+  .draw 4, .draw 5,              -- SIO draw + DE draw; autoDrain resolves SIO1(6)->exhaust
+  .play 7,                        -- ShrugItOff#2: +8blk, draw+DE draw, exhausts -> FNP+4
+  .failDraw,                      -- piles empty, skip SIO draw
+  .failDraw,                      -- autoDrain resolves SIO2(7)->exhaust; skip DE draw
   .play 10,                       -- Impervious+ (0 cost, corruption): +40blk, exhausts -> DE+1, FNP+4
-  .failDraw,                      -- piles empty
-  .play 5,                        -- DK#2: 7dmg, +1E, +1draw
-  .failDraw,                      -- piles empty (DK#2 still in inUse)
+  .failDraw,                      -- autoDrain resolves Imp(10)->exhaust; skip DE draw
+  .play 5,                        -- DK#2: 7dmg(vuln), +1E, +1draw
+  .failDraw,                      -- piles empty (DK2 in inUse); autoDrain resolves DK2(5)->discard
   .play 4,                        -- DK#1: 7dmg, +1E, +1draw
-  .draw 5                         -- shuffle DK#2 from discard -> draw, draw DK#2
+  .draw 5                         -- shuffle DK2(5) from discard -> draw, draw DK2(5)
 ]
 
 def stateA : GameState := {

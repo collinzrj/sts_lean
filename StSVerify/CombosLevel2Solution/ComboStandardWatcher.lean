@@ -211,7 +211,7 @@ private theorem perm_2_ci (l : List CardInstance) (x y : CardInstance) (hne : x 
 
 private theorem exL2_cons {oracle : ShuffleOracle} {si si' : Nat} {s s0 s' : GameState}
     {a : Action} {rest : List Action}
-    (hc : resolveInUse cardDB (autoDrain cardDB s) = s0)
+    (hc : autoDrain cardDB s = s0)
     (hs : stepL2 cardDB oracle si s0 a = some (s', si')) :
     executeL2 cardDB oracle si s (a :: rest) =
     executeL2 cardDB oracle si' s' rest := by
@@ -234,14 +234,14 @@ private theorem sL2_draw {oracle : ShuffleOracle} {si si' : Nat} {s s' : GameSta
 -- INTERMEDIATE STATES
 -- ============================================================
 
--- After play c4 (Tantrum+): shuffles self into draw
+-- After play c4 (Tantrum+): shuffles self into draw (resolveCard in queue)
 private def s1 : GameState := {
   hand := [ci3, ci6]
   drawPile := []
   discardPile := [ci5, ci7]
   exhaustPile := exhaustPileConst
   inUse := [ci4]
-  actionQueue := []
+  actionQueue := [.resolveCard 4]
   energy := 3
   damage := 87
   block := 24
@@ -548,21 +548,20 @@ private def s13b2 : GameState := { s12b2 with actionQueue := [] }
 -- Steps 1-3: play c4, resolveRushdown, autoPlayFlurry c7
 
 -- play c4 (Tantrum+)
-private def s1_raw : GameState := { s1 with drawPile := [] }  -- inUse has ci4
 theorem hs1 : step cardDB stateA (.play 4) = some s1 := by native_decide
-theorem hc1 : resolveInUse cardDB (autoDrain cardDB s1) = s1r := by native_decide
+theorem hc1 : autoDrain cardDB s1 = s1r := by native_decide
 
 theorem hs2 : step cardDB s1r .resolveRushdown = some s2 := by native_decide
-theorem hc2 : resolveInUse cardDB (autoDrain cardDB s2) = s2 := by native_decide
+theorem hc2 : autoDrain cardDB s2 = s2 := by native_decide
 
 theorem hs3 : step cardDB s2 (.autoPlayFlurry 7) = some s3 := by native_decide
-theorem hc3 : resolveInUse cardDB (autoDrain cardDB s3) = s3 := by native_decide
+theorem hc3 : autoDrain cardDB s3 = s3 := by native_decide
 
 -- draw c4 from drawPile=[c4] (no shuffle, oracle-independent)
 theorem hd4 (oracle : ShuffleOracle) :
     drawCardL2 oracle 0 s3 4 = some (s4, 0) := rfl
 
-theorem hc4 : resolveInUse cardDB (autoDrain cardDB s4) = s4 := by native_decide
+theorem hc4 : autoDrain cardDB s4 = s4 := by native_decide
 
 -- Shuffle 1 draws
 theorem hd5a (oracle : ShuffleOracle) (h : oracle 0 [ci5, ci7] = [ci5, ci7]) :
@@ -579,17 +578,17 @@ theorem hd6a (oracle : ShuffleOracle) :
 theorem hd6b (oracle : ShuffleOracle) :
     drawCardL2 oracle 1 s5b 5 = some (s6b, 1) := rfl
 
-theorem hc_stateA : resolveInUse cardDB (autoDrain cardDB stateA) = stateA := by native_decide
-theorem hc5a : resolveInUse cardDB (autoDrain cardDB s5a) = s5a := by native_decide
-theorem hc5b : resolveInUse cardDB (autoDrain cardDB s5b) = s5b := by native_decide
-theorem hc6a : resolveInUse cardDB (autoDrain cardDB s6a) = s6a := by native_decide
-theorem hc6b : resolveInUse cardDB (autoDrain cardDB s6b) = s6b := by native_decide
+theorem hc_stateA : autoDrain cardDB stateA = stateA := by native_decide
+theorem hc5a : autoDrain cardDB s5a = s5a := by native_decide
+theorem hc5b : autoDrain cardDB s5b = s5b := by native_decide
+theorem hc6a : autoDrain cardDB s6a = s6a := by native_decide
+theorem hc6b : autoDrain cardDB s6b = s6b := by native_decide
 
 -- failDraw, play c6, play c3, resolveRushdown
 theorem hs7a : step cardDB s6a .failDraw = some s7a := by native_decide
-theorem hc7a : resolveInUse cardDB (autoDrain cardDB s7a) = s7a := by native_decide
+theorem hc7a : autoDrain cardDB s7a = s7a := by native_decide
 theorem hs7b : step cardDB s6b .failDraw = some s7b := by native_decide
-theorem hc7b : resolveInUse cardDB (autoDrain cardDB s7b) = s7b := by native_decide
+theorem hc7b : autoDrain cardDB s7b = s7b := by native_decide
 
 -- play c6: need raw+resolved states
 private def s8a_raw : GameState := {
@@ -597,7 +596,7 @@ private def s8a_raw : GameState := {
   drawPile := [], discardPile := []
   exhaustPile := exhaustPileConst
   inUse := [ci6]
-  actionQueue := []
+  actionQueue := [.resolveCard 6]
   energy := 2, damage := 121, block := 30, stance := .Calm
   orbs := [], orbSlots := 3, focus := 0
   enemy := { vulnerable := 0, weak := 0, intending := true }
@@ -609,7 +608,7 @@ private def s8b_raw : GameState := {
   drawPile := [], discardPile := []
   exhaustPile := exhaustPileConst
   inUse := [ci6]
-  actionQueue := []
+  actionQueue := [.resolveCard 6]
   energy := 2, damage := 121, block := 30, stance := .Calm
   orbs := [], orbSlots := 3, focus := 0
   enemy := { vulnerable := 0, weak := 0, intending := true }
@@ -618,9 +617,9 @@ private def s8b_raw : GameState := {
 }
 
 theorem hs8a : step cardDB s7a (.play 6) = some s8a_raw := by native_decide
-theorem hc8a : resolveInUse cardDB (autoDrain cardDB s8a_raw) = s8a := by native_decide
+theorem hc8a : autoDrain cardDB s8a_raw = s8a := by native_decide
 theorem hs8b : step cardDB s7b (.play 6) = some s8b_raw := by native_decide
-theorem hc8b : resolveInUse cardDB (autoDrain cardDB s8b_raw) = s8b := by native_decide
+theorem hc8b : autoDrain cardDB s8b_raw = s8b := by native_decide
 
 -- play c3 (Eruption+)
 private def s9a_raw : GameState := {
@@ -628,7 +627,7 @@ private def s9a_raw : GameState := {
   drawPile := [], discardPile := [ci6]
   exhaustPile := exhaustPileConst
   inUse := [ci3]
-  actionQueue := []
+  actionQueue := [.resolveCard 3]
   energy := 3, damage := 130, block := 36, stance := .Wrath
   orbs := [], orbSlots := 3, focus := 0
   enemy := { vulnerable := 0, weak := 0, intending := true }
@@ -640,7 +639,7 @@ private def s9b_raw : GameState := {
   drawPile := [], discardPile := [ci6]
   exhaustPile := exhaustPileConst
   inUse := [ci3]
-  actionQueue := []
+  actionQueue := [.resolveCard 3]
   energy := 3, damage := 130, block := 36, stance := .Wrath
   orbs := [], orbSlots := 3, focus := 0
   enemy := { vulnerable := 0, weak := 0, intending := true }
@@ -649,14 +648,14 @@ private def s9b_raw : GameState := {
 }
 
 theorem hs9a : step cardDB s8a (.play 3) = some s9a_raw := by native_decide
-theorem hc9a : resolveInUse cardDB (autoDrain cardDB s9a_raw) = s9a := by native_decide
+theorem hc9a : autoDrain cardDB s9a_raw = s9a := by native_decide
 theorem hs9b : step cardDB s8b (.play 3) = some s9b_raw := by native_decide
-theorem hc9b : resolveInUse cardDB (autoDrain cardDB s9b_raw) = s9b := by native_decide
+theorem hc9b : autoDrain cardDB s9b_raw = s9b := by native_decide
 
 theorem hs10a : step cardDB s9a .resolveRushdown = some s10a := by native_decide
-theorem hc10a : resolveInUse cardDB (autoDrain cardDB s10a) = s10a := by native_decide
+theorem hc10a : autoDrain cardDB s10a = s10a := by native_decide
 theorem hs10b : step cardDB s9b .resolveRushdown = some s10b := by native_decide
-theorem hc10b : resolveInUse cardDB (autoDrain cardDB s10b) = s10b := by native_decide
+theorem hc10b : autoDrain cardDB s10b = s10b := by native_decide
 
 -- Shuffle 2 draws
 theorem hd11a1 (oracle : ShuffleOracle) (h : oracle 1 [ci3, ci6] = [ci3, ci6]) :
@@ -684,25 +683,25 @@ theorem hd12b2 (oracle : ShuffleOracle) :
     drawCardL2 oracle 2 s11b2 3 = some (s12b2, 2) := rfl
 
 -- Cleanup lemmas for shuffle draw states
-theorem hc11a1 : resolveInUse cardDB (autoDrain cardDB s11a1) = s11a1 := by native_decide
-theorem hc11a2 : resolveInUse cardDB (autoDrain cardDB s11a2) = s11a2 := by native_decide
-theorem hc11b1 : resolveInUse cardDB (autoDrain cardDB s11b1) = s11b1 := by native_decide
-theorem hc11b2 : resolveInUse cardDB (autoDrain cardDB s11b2) = s11b2 := by native_decide
-theorem hc12a1 : resolveInUse cardDB (autoDrain cardDB s12a1) = s12a1 := by native_decide
-theorem hc12a2 : resolveInUse cardDB (autoDrain cardDB s12a2) = s12a2 := by native_decide
-theorem hc12b1 : resolveInUse cardDB (autoDrain cardDB s12b1) = s12b1 := by native_decide
-theorem hc12b2 : resolveInUse cardDB (autoDrain cardDB s12b2) = s12b2 := by native_decide
+theorem hc11a1 : autoDrain cardDB s11a1 = s11a1 := by native_decide
+theorem hc11a2 : autoDrain cardDB s11a2 = s11a2 := by native_decide
+theorem hc11b1 : autoDrain cardDB s11b1 = s11b1 := by native_decide
+theorem hc11b2 : autoDrain cardDB s11b2 = s11b2 := by native_decide
+theorem hc12a1 : autoDrain cardDB s12a1 = s12a1 := by native_decide
+theorem hc12a2 : autoDrain cardDB s12a2 = s12a2 := by native_decide
+theorem hc12b1 : autoDrain cardDB s12b1 = s12b1 := by native_decide
+theorem hc12b2 : autoDrain cardDB s12b2 = s12b2 := by native_decide
 
 -- failDraw + tail: play c7, play c5, autoPlayFlurry c7
 -- These converge: a1=b1 → stateBx, a2=b2 → stateBy
 theorem hs13a1 : step cardDB s12a1 .failDraw = some s13a1 := by native_decide
-theorem hc13a1 : resolveInUse cardDB (autoDrain cardDB s13a1) = s13a1 := by native_decide
+theorem hc13a1 : autoDrain cardDB s13a1 = s13a1 := by native_decide
 theorem hs13a2 : step cardDB s12a2 .failDraw = some s13a2 := by native_decide
-theorem hc13a2 : resolveInUse cardDB (autoDrain cardDB s13a2) = s13a2 := by native_decide
+theorem hc13a2 : autoDrain cardDB s13a2 = s13a2 := by native_decide
 theorem hs13b1 : step cardDB s12b1 .failDraw = some s13b1 := by native_decide
-theorem hc13b1 : resolveInUse cardDB (autoDrain cardDB s13b1) = s13b1 := by native_decide
+theorem hc13b1 : autoDrain cardDB s13b1 = s13b1 := by native_decide
 theorem hs13b2 : step cardDB s12b2 .failDraw = some s13b2 := by native_decide
-theorem hc13b2 : resolveInUse cardDB (autoDrain cardDB s13b2) = s13b2 := by native_decide
+theorem hc13b2 : autoDrain cardDB s13b2 = s13b2 := by native_decide
 
 -- Verify tails by native_decide
 theorem tail_a1 : executeL2 cardDB (fun _ _ => []) 2 s13a1
@@ -720,8 +719,8 @@ theorem tail_oracle_indep (o1 o2 : ShuffleOracle) (idx : Nat) (s : GameState) :
     executeL2 cardDB o2 idx s [.play 7, .play 5, .autoPlayFlurry 7] := by
   simp only [executeL2, stepL2]
 
-theorem hc_Bx : resolveInUse cardDB (autoDrain cardDB stateBx) = stateBx := by native_decide
-theorem hc_By : resolveInUse cardDB (autoDrain cardDB stateBy) = stateBy := by native_decide
+theorem hc_Bx : autoDrain cardDB stateBx = stateBx := by native_decide
+theorem hc_By : autoDrain cardDB stateBy = stateBy := by native_decide
 
 -- ============================================================
 -- PER-CASE LOOP PROOFS

@@ -103,6 +103,7 @@ inductive QueueItem where
   | discardChoice             -- player chooses which card to discard from hand
   | exhaustChoice             -- player chooses which card to exhaust from hand
   | discardSpecific (c : CId) -- auto: discard this specific card (Storm right-to-left)
+  | resolveCard (c : CId)     -- auto: move played card from inUse to destination (discard/exhaust/drawPile)
   deriving Repr, DecidableEq, BEq
 
 /-! ## Card Definition (static, looked up by CardName from cardDB) -/
@@ -206,28 +207,26 @@ def mkTokens (cardDB : CardName → CardDef) (name : CardName) (n : Nat) (startI
   (List.range n).map fun i =>
     { id := startId + i, name := name, cost := def_.cost, damage := def_.dealsDamage }
 
-/-! ## Resolve inUse: when actionQueue is empty, move inUse cards to destination -/
+/-! ## Resolve inUse: move a specific card from inUse to its destination -/
 
-/-- Resolve inUse: move all inUse cards to their destinations.
-    Called when actionQueue is empty.
-    Destination is determined by card properties (looked up via cardDB). -/
-def resolveInUse (cardDB : CardName → CardDef) (s : GameState) : GameState :=
-  if s.actionQueue.length == 0 && s.inUse.length > 0 then
-    let (disc, exh, draw) := s.inUse.foldl (fun (d, e, dr) card =>
-      let def_ := cardDB card.name
-      let shouldExh := def_.effects.any (· == .exhaustSelf)
-                       || (s.corruptionActive && def_.isSkill)
-      let shouldShuffle := def_.effects.any (· == .shuffleSelf)
-      if shouldExh then (d, card :: e, dr)
-      else if shouldShuffle then (d, e, card :: dr)
-      else (card :: d, e, dr)
-    ) ([], [], [])
-    { s with
-      discardPile := disc ++ s.discardPile
-      exhaustPile := exh ++ s.exhaustPile
-      drawPile := draw ++ s.drawPile
-      inUse := [] }
-  else s
+/-- Resolve a single card from inUse: move it to discard, exhaust, or drawPile.
+    Called when `.resolveCard cardId` is processed from the action queue. -/
+def resolveOneCard (cardDB : CardName → CardDef) (s : GameState) (cardId : CId)
+    : GameState :=
+  match findById s.inUse cardId with
+  | none => s  -- card not found in inUse, no-op
+  | some card =>
+    let def_ := cardDB card.name
+    let shouldExh := def_.effects.any (· == .exhaustSelf)
+                     || (s.corruptionActive && def_.isSkill)
+    let shouldShuffle := def_.effects.any (· == .shuffleSelf)
+    let inUse' := removeById s.inUse cardId
+    if shouldExh then
+      { s with inUse := inUse', exhaustPile := card :: s.exhaustPile }
+    else if shouldShuffle then
+      { s with inUse := inUse', drawPile := card :: s.drawPile }
+    else
+      { s with inUse := inUse', discardPile := card :: s.discardPile }
 
 /-! ## Queue helpers -/
 
@@ -304,6 +303,9 @@ def autoDrain (cardDB : CardName → CardDef) (s : GameState) (fuel : Nat := 100
         let s'' := fireOnDiscard cardDB s' card
         autoDrain cardDB s'' fuel'
       | none => s  -- card not found, stop
+    | .resolveCard cid :: rest =>
+      let s' := resolveOneCard cardDB { s with actionQueue := rest } cid
+      autoDrain cardDB s' fuel'
     | _ => s
 
 /-! ## Actions -/
@@ -514,11 +516,12 @@ def playCard (cardDB : CardName → CardDef) (s : GameState) (cardId : CId)
       let s2b := { s2 with actionQueue := s2.actionQueue ++ List.replicate exhaustCount QueueItem.exhaustChoice }
       -- Set noDraw flag
       let s2c := if def_.effects.any (· == .setNoDraw) then { s2b with noDraw := true } else s2b
-      -- Card destination: powers go immediately, others go to inUse
+      -- Card destination: powers go immediately, others go to inUse + queue resolveCard
       let s3 := if def_.isPower then
           { s2c with activePowers := card.name :: s2c.activePowers }
         else
-          { s2c with inUse := card :: s2c.inUse }
+          { s2c with inUse := card :: s2c.inUse,
+                     actionQueue := s2c.actionQueue ++ [.resolveCard cardId] }
       -- Per-card-played hooks (After Image, A Thousand Cuts)
       let aiBlock := if s3.activePowers.has CardName.AfterImage then 1 else 0
       let atcDmg := if s3.activePowers.has CardName.AThousandCuts then 1 else 0
@@ -707,8 +710,8 @@ def step (cardDB : CardName → CardDef) (s : GameState) (a : Action)
 
 def execute (cardDB : CardName → CardDef) (s : GameState)
     (trace : List Action) : Option GameState :=
-  -- Auto-drain discardSpecific items, then resolve inUse
-  let s := resolveInUse cardDB (autoDrain cardDB s)
+  -- Auto-drain: process discardSpecific and resolveCard items
+  let s := autoDrain cardDB s
   match trace with
   | [] => some s
   | a :: rest =>
@@ -870,7 +873,7 @@ def stepL2 (cardDB : CardName → CardDef)
 def executeL2 (cardDB : CardName → CardDef)
     (oracle : ShuffleOracle) (shIdx : Nat) (s : GameState) (trace : List Action)
     : Option (GameState × Nat) :=
-  let s := resolveInUse cardDB (autoDrain cardDB s)
+  let s := autoDrain cardDB s
   match trace with
   | [] => some (s, shIdx)
   | a :: rest =>

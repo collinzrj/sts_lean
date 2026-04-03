@@ -67,7 +67,7 @@ def oraclesCond (cardDB : CardName → CardDef) (o1 o2 : ShuffleOracle)
     (si : Nat) (s : GameState) : List Action → Prop
   | [] => True
   | a :: rest =>
-    let s_clean := resolveInUse cardDB (autoDrain cardDB s)
+    let s_clean := autoDrain cardDB s
     (s_clean.drawPile ≠ [] ∨ o1 si s_clean.discardPile = o2 si s_clean.discardPile)
     ∧ match stepL2 cardDB o1 si s_clean a with
       | some (s', si') => oraclesCond cardDB o1 o2 si' s' rest
@@ -84,20 +84,15 @@ theorem executeL2_oraclesCond (cardDB : CardName → CardDef) (o1 o2 : ShuffleOr
   | cons a rest ih =>
     simp only [oraclesCond] at h
     obtain ⟨h_cond, h_rest⟩ := h
-    have h_eq : stepL2 cardDB o1 si (resolveInUse cardDB (autoDrain cardDB s)) a =
-                stepL2 cardDB o2 si (resolveInUse cardDB (autoDrain cardDB s)) a :=
+    have h_eq : stepL2 cardDB o1 si (autoDrain cardDB s) a =
+                stepL2 cardDB o2 si (autoDrain cardDB s) a :=
       stepL2_oracle_cond cardDB o1 o2 si _ a h_cond
-    change (let sc := resolveInUse cardDB (autoDrain cardDB s)
-            match stepL2 cardDB o1 si sc a with
-            | none => none | some (s', si') => executeL2 cardDB o1 si' s' rest) =
-           (let sc := resolveInUse cardDB (autoDrain cardDB s)
-            match stepL2 cardDB o2 si sc a with
-            | none => none | some (s', si') => executeL2 cardDB o2 si' s' rest)
-    simp only [h_eq]
-    cases h_match : stepL2 cardDB o2 si (resolveInUse cardDB (autoDrain cardDB s)) a with
+    show executeL2 cardDB o1 si s (a :: rest) = executeL2 cardDB o2 si s (a :: rest)
+    simp only [executeL2, h_eq]
+    cases h_match : stepL2 cardDB o2 si (autoDrain cardDB s) a with
     | none => rfl
     | some p =>
-      have h_o1 : stepL2 cardDB o1 si (resolveInUse cardDB (autoDrain cardDB s)) a = some p :=
+      have h_o1 : stepL2 cardDB o1 si (autoDrain cardDB s) a = some p :=
         h_eq ▸ h_match
       simp only [h_o1] at h_rest
       exact ih p.2 p.1 h_rest

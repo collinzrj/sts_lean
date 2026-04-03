@@ -36,28 +36,29 @@ def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
 def setupTrace : List Action := [
   .draw 0, .draw 1, .draw 2, .draw 3, .draw 4,
   .play 0,                          -- Storm: discard 4, Tact+2E, Reflex draw 3, 4 Shivs(5,6,7,8)
-  .draw 1, .draw 2, .draw 3,       -- draw Tact, Reflex, Prep from shuffled discard
+  .draw 1, .draw 2, .draw 3,       -- draw Tact, Reflex, Prep from shuffled discard (SoS resolved by autoDrain)
   .play 5, .play 6, .play 7, .play 8  -- play 4 Shivs (16 dmg)
 ]
 
 -- Loop: single-turn, no endTurn
 def loopTrace : List Action := [
   .play 3,                          -- Prepared+: draw 2, discard 2
-  .draw 4, .draw 0,                -- draw Strike(4) from drawPile, shuffle {SoS(0)}, draw SoS(0)
-  .discard 2,                       -- discard Reflex (trigger: draw 3)
-  .discard 1,                       -- discard Tact (trigger: +2E)
-  .draw 1, .draw 2, .failDraw,    -- draw Tact, Reflex from shuffled discard {Tact,Reflex}, fail 3rd
-  .play 0,                          -- SoS: discard 3 hand cards (Strike,Prep), 3 Shivs (9,10,11)
-  .draw 3, .draw 2, .draw 1,       -- draw 3 from shuffled discard
-  .play 9, .play 10, .play 11      -- play 3 Shivs (12 dmg)
+  .draw 4, .draw 0,                -- draw Strike(4), SoS(0) from drawPile
+  .discard 2,                       -- discard Reflex (trigger: draw 3 bottom)
+  .discard 1,                       -- discard Tact (trigger: +2E); resolveCard 3 auto -> Prep discard
+  .draw 1, .draw 2, .draw 3,       -- shuffle [Prep(3),Tact(1),Reflex(2)], draw 3
+  .play 0,                          -- SoS: 4 hand cards -> 4 Shivs; autoDrain resolves all
+  .draw 3, .draw 2, .draw 1,       -- shuffle discard, draw Prep, Reflex, Tact
+  .play 9, .play 10, .play 11, .play 12  -- play 4 Shivs (16 dmg)
 ]
 
 def stateA : GameState := {
   hand := [{ id := 3, name := PreparedPlus, cost := 0, damage := 0 },
            { id := 2, name := ReflexPlus, cost := 0, damage := 0 },
            { id := 1, name := TacticianPlus, cost := 0, damage := 0 }]
-  drawPile := [{ id := 4, name := StrikeSilent, cost := 1, damage := 6 }]
-  discardPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 }]
+  drawPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 },
+               { id := 4, name := StrikeSilent, cost := 1, damage := 6 }]
+  discardPile := []
   exhaustPile := [{ id := 8, name := Shiv, cost := 0, damage := 4 },
                   { id := 7, name := Shiv, cost := 0, damage := 4 },
                   { id := 6, name := Shiv, cost := 0, damage := 4 },
@@ -82,9 +83,11 @@ def stateB : GameState := {
   hand := [{ id := 1, name := TacticianPlus, cost := 0, damage := 0 },
            { id := 2, name := ReflexPlus, cost := 0, damage := 0 },
            { id := 3, name := PreparedPlus, cost := 0, damage := 0 }]
-  drawPile := [{ id := 4, name := StrikeSilent, cost := 1, damage := 6 }]
-  discardPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 }]
-  exhaustPile := [{ id := 11, name := Shiv, cost := 0, damage := 4 },
+  drawPile := [{ id := 0, name := StormOfSteelPlus, cost := 1, damage := 0 },
+               { id := 4, name := StrikeSilent, cost := 1, damage := 6 }]
+  discardPile := []
+  exhaustPile := [{ id := 12, name := Shiv, cost := 0, damage := 4 },
+                  { id := 11, name := Shiv, cost := 0, damage := 4 },
                   { id := 10, name := Shiv, cost := 0, damage := 4 },
                   { id := 9, name := Shiv, cost := 0, damage := 4 },
                   { id := 8, name := Shiv, cost := 0, damage := 4 },
@@ -94,7 +97,7 @@ def stateB : GameState := {
   inUse := []
   actionQueue := []
   energy := 7
-  damage := 28
+  damage := 32
   block := 0
   stance := .Neutral
   orbs := []
@@ -102,7 +105,7 @@ def stateB : GameState := {
   focus := 0
   enemy := { vulnerable := 0, weak := 0, intending := false }
   activePowers := []
-  nextId := 12
+  nextId := 13
   noDraw := false
   corruptionActive := false
 }

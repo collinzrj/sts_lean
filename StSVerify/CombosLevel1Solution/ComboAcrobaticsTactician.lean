@@ -39,11 +39,12 @@ def setupTrace : List Action := [
   .play 6,                          -- Neutralize+: 4 dmg, +2 weak (cost 0)
   .play 0,                          -- Acrobatics+#1: draw 4, discard 1 (cost 1)
   .draw 2, .draw 3, .draw 4, .draw 5,
-  .discard 2,                       -- discard Tactician+ -> +2E
+  .discard 2,                       -- discard Tactician+ -> +2E; resolveCard 0 auto -> Acro1 discard
   .play 1,                          -- Acrobatics+#2: draw 4, discard 1 (cost 1)
   .draw 10, .draw 6, .draw 0, .draw 2,
-  .discard 3,                       -- discard Reflex+ -> draw 3
-  .draw 3, .failDraw,             -- draw Reflex, fail rest
+  .discard 3,                       -- discard Reflex+ -> draw 3; resolveCard 1 auto -> Acro2 discard
+  .draw 3, .draw 1,               -- shuffle [Acro2(1),Reflex(3)], draw Reflex, Acro2
+  .failDraw,                        -- fail 3rd draw
   .play 11                          -- Grand Finale+: 60 dmg, exhaust (draw pile empty)
 ]
 
@@ -51,21 +52,24 @@ def setupTrace : List Action := [
 def loopTrace : List Action := [
   .play 6,                          -- Neutralize+: 4 dmg, +2 weak
   .play 10,                         -- Escape Plan+: draw 1
-  .draw 1,                          -- draw Acro#2 (shuffle discard)
+  .draw 6,                          -- shuffle [Neut(6)], draw Neut. resolveCard 10 auto -> EscP discard
   .play 0,                          -- Acro#1: draw 4, discard 1
-  .draw 6, .draw 10, .failDraw,   -- draw Neut, EscPlan, fail rest
-  .discard 2,                       -- discard Tactician+ -> +2E
+  .draw 10, .failDraw,            -- draw EscP from shuffle, fail rest (piles empty)
+  .discard 2,                       -- discard Tactician+ -> +2E; resolveCard 0 auto -> Acro1 discard
   .play 1,                          -- Acro#2: draw 4, discard 1
-  .draw 2, .draw 0, .failDraw,    -- draw Tact, Acro#1, fail rest
-  .discard 3,                       -- discard Reflex+ -> draw 3
-  .draw 3, .failDraw              -- draw Reflex, fail rest
+  .draw 0, .draw 2,               -- shuffle [Acro1(0),Tact(2)], draw both
+  .failDraw,                        -- fail remaining 2 draws
+  .discard 3,                       -- discard Reflex+ -> draw 3; resolveCard 1 auto -> Acro2 discard
+  .draw 3, .draw 1,               -- shuffle [Acro2(1),Reflex(3)], draw Reflex, Acro2
+  .failDraw                         -- fail 3rd draw
 ]
 
 -- #eval execute cardDB (mkInitialState cardDB cards enemy) setupTrace
 -- #eval execute cardDB (mkInitialState cardDB cards enemy) (setupTrace ++ loopTrace)
 
 def stateA : GameState := {
-  hand := [{ id := 3, name := ReflexPlus, cost := 0, damage := 0 },
+  hand := [{ id := 1, name := AcrobaticsPlus, cost := 1, damage := 0 },
+           { id := 3, name := ReflexPlus, cost := 0, damage := 0 },
            { id := 2, name := TacticianPlus, cost := 0, damage := 0 },
            { id := 0, name := AcrobaticsPlus, cost := 1, damage := 0 },
            { id := 6, name := NeutralizePlus, cost := 0, damage := 4 },
@@ -73,7 +77,7 @@ def stateA : GameState := {
            { id := 5, name := BackflipPlus, cost := 1, damage := 0 },
            { id := 4, name := BackflipPlus, cost := 1, damage := 0 }]
   drawPile := []
-  discardPile := [{ id := 1, name := AcrobaticsPlus, cost := 1, damage := 0 }]
+  discardPile := []
   exhaustPile := [{ id := 11, name := GrandFinalePlus, cost := 0, damage := 60 },
                   { id := 8, name := AdrenalinePlus, cost := 0, damage := 0 }]
   inUse := []
@@ -93,15 +97,16 @@ def stateA : GameState := {
 }
 
 def stateB : GameState := {
-  hand := [{ id := 3, name := ReflexPlus, cost := 0, damage := 0 },
-           { id := 0, name := AcrobaticsPlus, cost := 1, damage := 0 },
+  hand := [{ id := 1, name := AcrobaticsPlus, cost := 1, damage := 0 },
+           { id := 3, name := ReflexPlus, cost := 0, damage := 0 },
            { id := 2, name := TacticianPlus, cost := 0, damage := 0 },
+           { id := 0, name := AcrobaticsPlus, cost := 1, damage := 0 },
            { id := 10, name := EscapePlanPlus, cost := 0, damage := 0 },
            { id := 6, name := NeutralizePlus, cost := 0, damage := 4 },
            { id := 5, name := BackflipPlus, cost := 1, damage := 0 },
            { id := 4, name := BackflipPlus, cost := 1, damage := 0 }]
   drawPile := []
-  discardPile := [{ id := 1, name := AcrobaticsPlus, cost := 1, damage := 0 }]
+  discardPile := []
   exhaustPile := [{ id := 11, name := GrandFinalePlus, cost := 0, damage := 60 },
                   { id := 8, name := AdrenalinePlus, cost := 0, damage := 0 }]
   inUse := []

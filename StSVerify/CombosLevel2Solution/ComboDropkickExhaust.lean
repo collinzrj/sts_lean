@@ -88,23 +88,23 @@ def stateA : GameState := {
 }
 
 def loopTrace : List Action := [
-  .play 1,                        -- DK#1: 7dmg, +1E, +1draw (card in inUse)
-  .draw 2,                        -- shuffle [DK#2] from discard->draw, draw DK#2
-  .play 2,                        -- DK#2: 7dmg, +1E, +1draw (card in inUse)
-  .draw 1                         -- shuffle [DK#1] from discard->draw, draw DK#1
+  .play 1,                        -- DK#1: 7dmg, +1E, +1draw; queue=[draw, resolveCard 1]
+  .draw 2,                        -- shuffle [DK#2] from discard->draw, draw DK#2; autoDrain resolves dk1->discard
+  .play 2,                        -- DK#2: 7dmg, +1E, +1draw; queue=[draw, resolveCard 2]
+  .draw 1                         -- shuffle [DK#1] from discard->draw, draw DK#1; autoDrain resolves dk2->discard
 ]
 
 def stateB : GameState :=
   { stateA with damage := 50 }
 
--- Intermediate: after play DK#1 (card in inUse, actionQueue has draw)
+-- After play DK#1: card in inUse, queue has [draw, resolveCard 1]
 def stateS1 : GameState := {
   hand := [bash, tg]
   drawPile := []
   discardPile := [dk2]
   exhaustPile := stateA.exhaustPile
   inUse := [dk1]
-  actionQueue := [.draw]
+  actionQueue := [.draw, .resolveCard 1]
   energy := 1
   damage := 43
   block := 0
@@ -119,14 +119,14 @@ def stateS1 : GameState := {
   corruptionActive := false
 }
 
--- Raw state after draw DK#2 (before resolveInUse)
+-- After draw DK#2 (raw, before autoDrain resolves resolveCard 1)
 def stateR2 : GameState := {
   hand := [dk2, bash, tg]
   drawPile := []
   discardPile := []
   exhaustPile := stateA.exhaustPile
   inUse := [dk1]
-  actionQueue := []
+  actionQueue := [.resolveCard 1]
   energy := 1
   damage := 43
   block := 0
@@ -141,7 +141,7 @@ def stateR2 : GameState := {
   corruptionActive := false
 }
 
--- After resolveInUse: DK#1 -> discard
+-- After autoDrain resolves resolveCard 1: dk1 -> discard
 def stateS2 : GameState := {
   hand := [dk2, bash, tg]
   drawPile := []
@@ -163,14 +163,14 @@ def stateS2 : GameState := {
   corruptionActive := false
 }
 
--- After play DK#2 (card in inUse, actionQueue has draw)
+-- After play DK#2: card in inUse, queue has [draw, resolveCard 2]
 def stateS3 : GameState := {
   hand := [bash, tg]
   drawPile := []
   discardPile := [dk1]
   exhaustPile := stateA.exhaustPile
   inUse := [dk2]
-  actionQueue := [.draw]
+  actionQueue := [.draw, .resolveCard 2]
   energy := 1
   damage := 50
   block := 0
@@ -185,14 +185,14 @@ def stateS3 : GameState := {
   corruptionActive := false
 }
 
--- Raw state after draw DK#1 (before resolveInUse)
+-- After draw DK#1 (raw, before autoDrain resolves resolveCard 2)
 def stateR4 : GameState := {
   hand := [dk1, bash, tg]
   drawPile := []
   discardPile := []
   exhaustPile := stateA.exhaustPile
   inUse := [dk2]
-  actionQueue := []
+  actionQueue := [.resolveCard 2]
   energy := 1
   damage := 50
   block := 0
@@ -224,15 +224,15 @@ private theorem perm_singleton_eq (a : CardInstance) (l : List CardInstance)
     (h : List.Perm l [a]) : l = [a] :=
   List.perm_singleton.mp h
 
--- Clean state lemmas
-private theorem clean_stateA : resolveInUse cardDB (autoDrain cardDB stateA) = stateA := by
+-- Clean state lemmas (autoDrain now handles resolveCard)
+private theorem clean_stateA : autoDrain cardDB stateA = stateA := by
   native_decide
 
 -- Step 1: play DK#1 -> stateS1
 private theorem step1_val :
     step cardDB stateA (.play 1) = some stateS1 := by native_decide
 
-private theorem clean_stateS1 : resolveInUse cardDB (autoDrain cardDB stateS1) = stateS1 := by
+private theorem clean_stateS1 : autoDrain cardDB stateS1 = stateS1 := by
   native_decide
 
 -- Step 2: draw DK#2 (oracle shuffles singleton [dk2])
@@ -245,17 +245,15 @@ private theorem step2_raw (oracle : ShuffleOracle) (hValid : validOracle oracle)
   rw [hp]
   native_decide
 
-private theorem clean_stateR2 : resolveInUse cardDB (autoDrain cardDB stateR2) = stateS2 := by
-  native_decide
-
-private theorem clean_stateS2 : resolveInUse cardDB (autoDrain cardDB stateS2) = stateS2 := by
+-- autoDrain on stateR2 resolves resolveCard 1 -> stateS2
+private theorem clean_stateR2 : autoDrain cardDB stateR2 = stateS2 := by
   native_decide
 
 -- Step 3: play DK#2 -> stateS3
 private theorem step3_val :
     step cardDB stateS2 (.play 2) = some stateS3 := by native_decide
 
-private theorem clean_stateS3 : resolveInUse cardDB (autoDrain cardDB stateS3) = stateS3 := by
+private theorem clean_stateS3 : autoDrain cardDB stateS3 = stateS3 := by
   native_decide
 
 -- Step 4: draw DK#1 (oracle shuffles singleton [dk1])
@@ -268,7 +266,8 @@ private theorem step4_raw (oracle : ShuffleOracle) (hValid : validOracle oracle)
   rw [hp]
   native_decide
 
-private theorem clean_stateR4 : resolveInUse cardDB (autoDrain cardDB stateR4) = stateB := by
+-- autoDrain on stateR4 resolves resolveCard 2 -> stateB
+private theorem clean_stateR4 : autoDrain cardDB stateR4 = stateB := by
   native_decide
 
 -- Main loop theorem (NO native_decide -- only rw/simp)

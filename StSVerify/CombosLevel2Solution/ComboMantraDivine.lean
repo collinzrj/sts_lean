@@ -4,7 +4,7 @@
 
   v2 engine: CardInstance piles, sameModAccum(stateA, stateB),
   execute cardDB, ShuffleOracle on List CardInstance, drawCardL2 top-card,
-  resolveInUse instead of resolveLimbo.
+  autoDrain handles resolveCard (replaces resolveInUse).
 
   Shuffle point: discardPile = [ci3:Eruption+, ci8:Flurry+, ci4:InnerPeace]
   3! = 6 permutations. All draw the same 3 cards, and playCard uses findById,
@@ -164,7 +164,7 @@ private theorem perm_384_cases (l : List CardInstance) (hp : l.Perm [ci3, ci8, c
 
 private theorem exL2_cons {oracle : ShuffleOracle} {si si' : Nat} {s s0 s' : GameState}
     {a : Action} {rest : List Action}
-    (hc : resolveInUse cardDB (autoDrain cardDB s) = s0)
+    (hc : autoDrain cardDB s = s0)
     (hs : stepL2 cardDB oracle si s0 a = some (s', si')) :
     executeL2 cardDB oracle si s (a :: rest) =
     executeL2 cardDB oracle si' s' rest := by
@@ -187,14 +187,14 @@ private theorem sL2_draw {oracle : ShuffleOracle} {si si' : Nat} {s s' : GameSta
 -- INTERMEDIATE STATES
 -- ============================================================
 
--- After play c3 (Eruption+): dealDamage 9 first (Calm, no mult), then Calm→Wrath +2E +6 block
--- card in inUse
-private def s1 : GameState := {
+-- After play c3 (Eruption+) + autoDrain resolves resolveCard 3:
+-- ci3 goes to discard (not exhaust, not shuffle)
+private def s1r : GameState := {
   hand := []
   drawPile := []
-  discardPile := [ci8, ci4]
+  discardPile := [ci3, ci8, ci4]
   exhaustPile := stateA.exhaustPile
-  inUse := [ci3]
+  inUse := []
   actionQueue := []
   energy := 8
   damage := 15
@@ -208,13 +208,6 @@ private def s1 : GameState := {
   nextId := 15
   noDraw := false
   corruptionActive := false
-}
-
--- resolveInUse: ci3 → discard (not exhaust, not shuffle)
-private def s1r : GameState := {
-  s1 with
-  discardPile := [ci3, ci8, ci4]
-  inUse := []
 }
 
 -- After resolveRushdown: +4 draws
@@ -293,24 +286,32 @@ private def s_after_draw3 (a b c : CardInstance) : GameState := {
 -- STEP LEMMAS
 -- ============================================================
 
-private theorem hc_stateA : resolveInUse cardDB (autoDrain cardDB stateA) = stateA := by native_decide
-private theorem hs_play_c3 : step cardDB stateA (.play 3) = some s1 := by native_decide
-private theorem hc_s1 : resolveInUse cardDB (autoDrain cardDB s1) = s1r := by native_decide
+-- play ci3 raw state (before autoDrain)
+private def s1_raw : GameState := {
+  s1r with
+  inUse := [ci3]
+  discardPile := [ci8, ci4]
+  actionQueue := [.resolveCard 3]
+}
+
+private theorem hc_stateA : autoDrain cardDB stateA = stateA := by native_decide
+private theorem hs_play_c3 : step cardDB stateA (.play 3) = some s1_raw := by native_decide
+private theorem hc_s1 : autoDrain cardDB s1_raw = s1r := by native_decide
 private theorem hs_rushdown : step cardDB s1r .resolveRushdown = some s2 := by native_decide
-private theorem hc_s2 : resolveInUse cardDB (autoDrain cardDB s2) = s2 := by native_decide
+private theorem hc_s2 : autoDrain cardDB s2 = s2 := by native_decide
 private theorem hs_flurry : step cardDB s2 (.autoPlayFlurry 8) = some s3 := by native_decide
-private theorem hc_s3 : resolveInUse cardDB (autoDrain cardDB s3) = s3 := by native_decide
+private theorem hc_s3 : autoDrain cardDB s3 = s3 := by native_decide
 
 -- Cleanup lemmas for draw states
 private theorem hc_s_after_draw1 (a b c : CardInstance) :
-    resolveInUse cardDB (autoDrain cardDB (s_after_draw1 a b c)) = s_after_draw1 a b c := by
-  simp [s_after_draw1, autoDrain, resolveInUse]
+    autoDrain cardDB (s_after_draw1 a b c) = s_after_draw1 a b c := by
+  simp [s_after_draw1, autoDrain]
 private theorem hc_s_after_draw2 (a b c : CardInstance) :
-    resolveInUse cardDB (autoDrain cardDB (s_after_draw2 a b c)) = s_after_draw2 a b c := by
-  simp [s_after_draw2, autoDrain, resolveInUse]
+    autoDrain cardDB (s_after_draw2 a b c) = s_after_draw2 a b c := by
+  simp [s_after_draw2, autoDrain]
 private theorem hc_s_after_draw3 (a b c : CardInstance) :
-    resolveInUse cardDB (autoDrain cardDB (s_after_draw3 a b c)) = s_after_draw3 a b c := by
-  simp [s_after_draw3, autoDrain, resolveInUse]
+    autoDrain cardDB (s_after_draw3 a b c) = s_after_draw3 a b c := by
+  simp [s_after_draw3, autoDrain]
 
 -- ============================================================
 -- DRAW STEP LEMMAS
@@ -399,7 +400,7 @@ private theorem loop_case (oracle : ShuffleOracle) (a b c : CardInstance)
     ([.play 3, .resolveRushdown, .autoPlayFlurry 8,
       .draw a.id, .draw b.id, .draw c.id,
       .failDraw, .play 8, .play 4, .autoPlayFlurry 8]) = some (stateB, 1)
-  -- Step 1: play c3 → s1
+  -- Step 1: play c3 → s1_raw, autoDrain → s1r
   rw [exL2_cons hc_stateA (sL2_step (by intro c; simp) hs_play_c3)]
   -- Step 2: resolveRushdown → s2
   rw [exL2_cons hc_s1 (sL2_step (by intro c; simp) hs_rushdown)]
@@ -408,7 +409,7 @@ private theorem loop_case (oracle : ShuffleOracle) (a b c : CardInstance)
   -- Step 4: draw a (oracle-dependent, shuffle from [ci3,ci8,ci4])
   have hd_a : drawCardL2 oracle 0 s3 a.id = some (s_after_draw1 a b c, 1) := by
     unfold drawCardL2
-    simp only [s3, s2, s1r, s1]
+    simp only [s3, s2, s1r]
     rw [h]; exact h_fd ▸ rfl
   rw [exL2_cons hc_s3 (sL2_draw hd_a)]
   -- Step 5: draw b (oracle-independent, drawPile ≠ [])

@@ -15,20 +15,20 @@ import StSVerify.CombosLevel1Solution.ComboStormOfSteel
 import StSVerify.CombosLevel1Solution.ComboStormOfSteel2Prep
 import StSVerify.CombosLevel1Solution.ComboStormOfSteel3Prep
 import StSVerify.CombosLevel1Solution.ComboStormStrike
--- L2: 11/12 (sorry-free proofs)
+-- L2: 11/12 proved infinite
 import StSVerify.CombosLevel2Solution.ComboDropkickExhaust
 import StSVerify.CombosLevel2Solution.ComboCorruptionDropkick
 import StSVerify.CombosLevel2Solution.ComboHeelHookExhaust
 import StSVerify.CombosLevel2Solution.ComboStreamlineHologram
 import StSVerify.CombosLevel2Solution.ComboStormOfSteel
 import StSVerify.CombosLevel2Solution.ComboStormOfSteel2Prep
-import StSVerify.CombosLevel2Solution.ComboStormOfSteel3Prep
+import StSVerify.CombosLevel2Solution.ComboStormStrike
 import StSVerify.CombosLevel2Solution.ComboMantraDivine
 import StSVerify.CombosLevel2Solution.ComboStandardWatcher
 import StSVerify.CombosLevel2Solution.ComboAcrobaticsTactician
 import StSVerify.CombosLevel2Solution.ComboTantrumFearNoEvil
--- L2: 1/12 not L2-infinite (StormStrike: adversary strands Prep, sorry in negation proof)
--- import StSVerify.CombosLevel2Solution.ComboStormStrike
+-- L2: 1/12 sorry (3Prep: 6-card shuffle creates cascading oracle interactions)
+-- import StSVerify.CombosLevel2Solution.ComboStormOfSteel3Prep  -- 2 sorry
 
 def main : IO Unit :=
   IO.println "All StS infinite combo proofs verified!"
