@@ -5,7 +5,7 @@
   Prove there EXISTS a sequence of actions that loops,
   dealing damage each iteration. Lucky draws are OK.
 -/
-import StSVerify.Basic
+import StSVerify.Engine
 import StSVerify.CardDB
 
 open CardName Action
