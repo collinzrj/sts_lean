@@ -75,41 +75,39 @@ generate_templates.py        — Generates template files from combos_v2.jsonl
 
 ## L2 Proof Techniques
 
-The harder combos (StormStrike, TantrumFearNoEvil, StormOfSteel 2/3Prep) use the **drawCondBool bridge** pattern:
-
-1. Define `drawCondBool fo p1 p2 si s trace : Bool` — steps through execution using a fixed oracle, checking at each draw step that either drawPile is non-empty or we're at a known shuffle point
-2. Verify `drawCondBool` passes for all permutation pairs with a single `native_decide` (concrete engine computation)
-3. Prove `drawCondBool_bridge`: if the check passes and the real oracle agrees at shuffle points, `executeL2` gives the same result (proved by induction with `stepL2_oracle_cond`)
-4. Main theorem combines the bridge with permutation completeness
-
 Simpler combos use direct step-chain proofs (`exL2_cons` + `perm_singleton_eq`/`perm_3_cases`).
 
-### Hardest Challenge: Storm of Steel + 3 Prepared+ (6 cards)
+Harder combos use the **drawCondBool bridge** pattern. Example below.
 
-**Combo**: Storm of Steel+ + Tactician+ + Reflex+ + 3x Prepared+ (6 cards)
+### Example: Storm of Steel+ + 2×Prepared+ (5 cards)
 
-**Why it's hard**: Unlike all other combos, the 6-card deck creates cascading oracle interactions that prevent a simple period-1 loop:
-- After one loop: Reflex's draw 3 draws 2 of 3 from a sub-shuffle, stranding 1 card in drawPile
-- State goes from (hand=6, draw=0) to (hand=5, draw=1) — `sameModAccum` fails
-- The adversary can choose to strand Reflex itself, killing the draw-3 trigger in the next iteration
-- When Reflex is stranded with empty discardPile, Prepared+ can't draw it back (draw fails)
+**Cards and effects**:
+| Card | Cost | Effect |
+|------|------|--------|
+| Storm of Steel+ | 1E | Discard all hand cards, create one Shiv per card discarded (0-cost attack, 4 damage, exhaust on play) |
+| Tactician+ | Unplayable | **On discard**: gain 2 energy |
+| Reflex+ | Unplayable | **On discard**: draw 3 cards |
+| Prepared+ ×2 | 0E | Draw 2 cards, then discard 2 cards |
 
-**Proof target**: `UnboundedDamage` (not `GuaranteedInfiniteCombo`)
+**Loop strategy** (single turn, no endTurn):
 
-**Conjectured strategy**: The player can adaptively deal unbounded damage by:
-1. Keeping Reflex in hand (don't discard via Prep) when the oracle is adversarial
-2. Playing SoS with Reflex in hand → stormOfSteel discards Reflex → draw 3 trigger
-3. Using the 3 Preps to cycle cards and recover SoS for the next damage cycle
-4. Each SoS play creates at least 1 Shiv = 4 damage minimum
+1. **Play Storm of Steel+** (1E) → discard 4 hand cards, create 4 Shivs. Tactician+ triggers +2E, Reflex+ triggers draw 3
+2. **Draw 3 from 5-card shuffle** (Oracle 0 controls order). **Pigeonhole: 2 Preps among 5 cards, drawing 3 guarantees at least 1 Prep.** 2 cards stranded in drawPile
+3. **Play 4 Shivs** (0E) → 16 damage, Shivs exhaust
+4. **Play a Prepared+** (0E) → draw 2 (retrieves 2 stranded cards), discard 2 (discard Tactician+ and Reflex+). Tactician+ triggers +2E, Reflex+ triggers draw 3
+5. **Draw 3 from 3-card shuffle** (Oracle 1). **All 3 drawn, oracle has no control**
+6. **Back to anchor state**: hand = {SoS+, Tact+, Reflex+, Prep+, Prep+}
 
-**Status**: OPEN — no reference solution. This requires proving a complex multi-iteration adaptive strategy, beyond what single-loop `native_decide` can verify.
+**Why it works for ALL shuffles**:
+- **Step 2 (pigeonhole)**: 5 cards with 2 Preps → draw 3 always includes at least 1 Prep
+- **Step 4 (Prep recovery)**: drawPile has exactly 2 stranded cards, Prep draws both back
+- **Step 5 (full draw)**: pile has exactly 3 = draw count, all recovered, oracle irrelevant
+- **`sameModAccum` interchangeability**: both Prep+ have identical (name, cost, damage), sorted comparison matches regardless of which is where
 
-### Example (proved): Storm of Steel + 2 Prepared+ (5 cards)
+**drawCondBool bridge proof structure** (4 layers):
 
-The 2-Prep variant IS `GuaranteedInfiniteCombo`. With 5 cards and 2 shuffle points (Oracle 0: 120 perms, Oracle 1: 6 perms = 720 total), the drawCondBool bridge pattern proves the loop for all cases:
-
-1. **Computational verification** (`verifyAll_ok`): `native_decide` checks all 720 permutation pairs
-2. **Oracle bridge** (`drawCondBool_bridge`): proved by induction on the trace using `stepL2_oracle_cond`
+1. **Computational verification**: `native_decide` checks all 120×6 = 720 permutation combinations
+2. **Oracle bridge**: proved by induction on the trace — if the real oracle agrees with the fixed oracle at shuffle points, `executeL2` gives the same result (using `stepL2_oracle_cond`)
 3. **Permutation completeness**: mathematical case analysis proves `List.Perm l pile → l ∈ allPerms` (Nodup + element membership)
 4. **Main theorem**: introduces oracle, combines bridge with verification. **No `native_decide` in main proof body**
 
