@@ -19,15 +19,20 @@
 
 **Level 2 — 对抗对手控制的洗牌：** 玩家可以在前几个回合进行启动（假设幸运），但在无限循环回合必须处理所有洗牌情况（由 `ShuffleOracle` 控制）。
 - `native_decide` 仅允许用于引擎计算辅助引理，不允许出现在主证明体中
-- 三个证明目标（强度递减）：
+- 可以证明以下三个证明目标中任意一个：
 
-| 强度 | 命题 | 量词结构 | 含义 |
+| 约束强度 | 命题 | 量词结构 | 含义 |
 |------|------|---------|------|
-| 最强 | `GuaranteedInfiniteCombo` | `∀oracle ∃trace, sameModAccum` | 周期1循环：状态精确回归 |
-| 中等 | `RobustInfinite` | `∀oracle ∃strategy ∀N ∃K, damage > N` | 固定策略击杀任意血量 |
-| 最弱 | `UnboundedDamage` | `∀oracle ∀N ∃trace, damage > N` | 每个血量目标对应一个策略 |
+| 最强 | `GuaranteedInfiniteCombo` | `∀oracle ∃trace, sameModAccum` | 从一个状态可以在能量不减少情况下回到当前状态 |
+| 中等 | `RobustInfinite` | `∀oracle ∃strategy ∀N ∃K, damage > N` | 固定策略，可以击杀任意血量 |
+| 最弱 | `UnboundedDamage` | `∀oracle ∀N ∃trace, damage > N` | 固定血量，一定存在一个策略超过此血量 |
 
-- `RobustInfinite → UnboundedDamage` 已证明。`GuaranteedInfiniteCombo → RobustInfinite` 已声明（sorry）。
+- `RobustInfinite → UnboundedDamage` 已证明。`GuaranteedInfiniteCombo → RobustInfinite` 暂时还无法证明。
+- 为什么 `RobustInfinite` 不等于 `UnboundedDamage`？
+  - `RobustInfinite`：`∃strategy ∀N`——玩家必须在**不知道目标伤害N**的情况下，先确定一个固定的无限操作序列。同一个策略必须对所有N都能达标。
+  - `UnboundedDamage`：`∀N ∃trace`——玩家可以**根据N选择不同的操作序列**。每个目标N可以用量身定制的策略。
+  - 具体来说，UnboundedDamage允许玩家先“蓄力”（比如攒能量）然后打出一张可能破坏循环的卡，而RobustInfinite则是用户可以在打出伤害后无限继续
+    - 其中的问题在于，如果存在一个血量未知的敌人（但是如果击杀可以看到反馈），那UnboundedDamage不存在必胜策略，而RobustInfinite可以必胜
 
 ## 项目结构
 

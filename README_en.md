@@ -23,6 +23,11 @@ Evaluates whether LLMs can formally prove that Slay the Spire card combos loop i
 | Weakest | `UnboundedDamage` | `∀oracle ∀N ∃trace, damage > N` | Each HP target gets own trace |
 
 - `RobustInfinite → UnboundedDamage` is proved. `GuaranteedInfiniteCombo → RobustInfinite` is stated (sorry).
+- Why `RobustInfinite` ≠ `UnboundedDamage`:
+  - `RobustInfinite`: `∃strategy ∀N` — the player commits to a **fixed infinite action sequence** without knowing the damage target N. The same strategy must work for all N.
+  - `UnboundedDamage`: `∀N ∃trace` — the player can **choose a different trace for each N**. Each target gets a tailored strategy.
+  - Concretely, `UnboundedDamage` allows the player to "charge up" (e.g., accumulate energy) then play a card that breaks the loop — as long as it reaches the target N. `RobustInfinite` requires the player to keep going indefinitely after dealing damage.
+    - The game-theoretic consequence: against an enemy with unknown HP (where the player only sees "alive/dead" feedback), `UnboundedDamage` does NOT guarantee a win — the player can't know when to stop charging. `RobustInfinite` guarantees a win since damage grows without bound along a single execution path.
 
 ## Structure
 
