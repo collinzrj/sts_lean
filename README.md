@@ -91,19 +91,30 @@ generate_templates.py        — 从 combos_v2.jsonl 生成模板文件
 | 本能反应+ (Reflex+) | 不可打出 | **被弃时**触发：抽3张牌 |
 | 早有准备+ ×2 (Prepared+ ×2) | 0费 | 抽2张牌，然后弃2张牌 |
 
-**循环策略**（单回合内，无需结束回合）：
+**循环策略**（单回合内，无需结束回合，分两种情况）：
 
+**共同起手**：
 1. **打出钢铁风暴+**（1费）→ 弃掉4张手牌，生成4把匕首。战术大师+触发 +2费，本能反应+触发抽3张
-2. **从5张牌的洗牌堆抽3张**（Oracle 0 控制顺序）。**鸽巢原理：5张中有2张准备+，加上3张非准备牌，抽3张至少包含1张准备+**。剩余2张留在抽牌堆
-3. **打出4把匕首**（0费）→ 16点伤害，匕首消耗
-4. **打出一张准备+**（0费）→ 抽2张（从牌堆取回被对手藏起的2张牌），弃2张（弃掉战术大师+和本能反应+）。战术大师+触发 +2费，本能反应+触发抽3张
-5. **从3张牌的洗牌堆抽3张**（Oracle 1 控制顺序）。**3张全部抽回，对手无法控制**
-6. **回到锚定状态**：手牌 = {钢铁风暴+, 战术大师+, 本能反应+, 准备+, 准备+}
+2. **从5张牌的洗牌堆抽3张**（Oracle 控制顺序）。2张牌滞留在抽牌堆
+
+**NS 分支**（抽到的3张中有准备+）：
+3. **打出4把匕首**（0费）→ 16点伤害
+4. **打出准备+**（0费）→ 抽2张（取回滞留的牌），弃2张（战术大师+和本能反应+）。触发 +2费 和 抽3张
+5. **从3张牌的洗牌堆抽3张** → 全部抽回，对手无法控制
+6. **回到锚定状态** ✓
+
+**PS 分支**（抽到的3张中无准备+，即 {钢铁风暴+, 战术大师+, 本能反应+}）：
+3. **打出4把匕首**（0费）→ 16点伤害
+4. **再次打出钢铁风暴+**（1费）→ 弃掉战术大师+和本能反应+，生成2把匕首。触发 +2费 和 抽3张
+5. **抽3张** → 从抽牌堆取回2张准备+ + 从洗牌堆抽1张
+6. **打出2把匕首**（0费）→ 8点伤害
+7. **打出准备+**（0费）→ 抽2张（洗牌堆剩余），弃2张（战术大师+和本能反应+）。触发 +2费 和 抽3张
+8. **从3张牌的洗牌堆抽3张** → 全部抽回，对手无法控制
+9. **回到锚定状态** ✓
 
 **为什么对所有洗牌都成立**：
-- **第2步（鸽巢原理）**：5张牌中2张是准备+，抽3张必定至少包含1张准备+
-- **第4步（准备+恢复）**：牌堆恰好剩2张，准备+全部抽回
-- **第5步（全量抽取）**：洗牌堆恰好3张 = 抽牌数，全部抽回，对手无控制权
+- **NS/PS 分支覆盖所有情况**：抽到的3张要么包含准备+（NS），要么不包含（PS），两条路径都能回到锚定状态
+- **最后一步（全量抽取）**：两条路径最终都从恰好3张牌的洗牌堆抽3张，对手无控制权
 - **`sameModAccum` 可互换性**：两张准备+具有相同的（名称, 费用, 伤害），无论哪张被藏在弃牌堆，排序后结果相同
 
 **drawCondBool 桥接证明结构**（4层）：
@@ -126,11 +137,14 @@ generate_templates.py        — 从 combos_v2.jsonl 生成模板文件
 
 ## Benchmark 分发
 
-`sts_benchmark.tar.gz` 包含完整的 benchmark（不含参考解答）。解压后让 LLM agent 阅读 `INSTRUCTIONS.md` 并完成任务即可。
+`sts_benchmark.tar.gz` 包含完整的 benchmark（不含参考解答）。解压后让 LLM agent 阅读 `INSTRUCTIONS.md` 并完成任务即可。运行以下命令即可直接开始测试，不需要clone repo
 
 ```bash
-mkdir sts_benchmark
-tar xzf sts_benchmark.tar.gz -C sts_benchmark/ && cd sts_benchmark/
+mkdir -p sts_benchmark
+curl -L -o sts_benchmark.tar.gz https://github.com/collinzrj/sts_lean/raw/main/sts_benchmark.tar.gz
+tar -xzf sts_benchmark.tar.gz -C sts_benchmark
+cd sts_benchmark 
+claude --dangerously-skip-permissions "Read INSTRUCTIONS.md, then prove all theorems marked sorry in StSVerify/CombosTemplateL1/ and StSVerify/CombosTemplateL2/. Verify each proof compiles with lake build. If you finish, try the bonus challenges in StSVerify/ExtendedTargets.lean."
 ```
 
 Prompt:

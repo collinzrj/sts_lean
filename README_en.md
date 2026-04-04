@@ -89,19 +89,30 @@ Harder combos use the **drawCondBool bridge** pattern. Example below.
 | Reflex+ | Unplayable | **On discard**: draw 3 cards |
 | Prepared+ ×2 | 0E | Draw 2 cards, then discard 2 cards |
 
-**Loop strategy** (single turn, no endTurn):
+**Loop strategy** (single turn, no endTurn, two branches):
 
+**Shared opening**:
 1. **Play Storm of Steel+** (1E) → discard 4 hand cards, create 4 Shivs. Tactician+ triggers +2E, Reflex+ triggers draw 3
-2. **Draw 3 from 5-card shuffle** (Oracle 0 controls order). **Pigeonhole: 2 Preps among 5 cards, drawing 3 guarantees at least 1 Prep.** 2 cards stranded in drawPile
-3. **Play 4 Shivs** (0E) → 16 damage, Shivs exhaust
-4. **Play a Prepared+** (0E) → draw 2 (retrieves 2 stranded cards), discard 2 (discard Tactician+ and Reflex+). Tactician+ triggers +2E, Reflex+ triggers draw 3
-5. **Draw 3 from 3-card shuffle** (Oracle 1). **All 3 drawn, oracle has no control**
-6. **Back to anchor state**: hand = {SoS+, Tact+, Reflex+, Prep+, Prep+}
+2. **Draw 3 from 5-card shuffle** (Oracle controls order). 2 cards stranded in drawPile
+
+**NS branch** (drew at least 1 Prepared+):
+3. **Play 4 Shivs** (0E) → 16 damage
+4. **Play Prepared+** (0E) → draw 2 (retrieves stranded cards), discard 2 (Tactician+ and Reflex+). Triggers +2E and draw 3
+5. **Draw 3 from 3-card shuffle** → all 3 drawn, oracle has no control
+6. **Back to anchor state** ✓
+
+**PS branch** (drew 0 Prepared+, i.e. {SoS+, Tact+, Reflex+}):
+3. **Play 4 Shivs** (0E) → 16 damage
+4. **Play Storm of Steel+ again** (1E) → discard Tactician+ and Reflex+, create 2 Shivs. Triggers +2E and draw 3
+5. **Draw 3** → retrieve 2 Prepared+ from drawPile + 1 from shuffle
+6. **Play 2 Shivs** (0E) → 8 damage
+7. **Play Prepared+** (0E) → draw 2 (shuffle remainder), discard 2 (Tactician+ and Reflex+). Triggers +2E and draw 3
+8. **Draw 3 from 3-card shuffle** → all 3 drawn, oracle has no control
+9. **Back to anchor state** ✓
 
 **Why it works for ALL shuffles**:
-- **Step 2 (pigeonhole)**: 5 cards with 2 Preps → draw 3 always includes at least 1 Prep
-- **Step 4 (Prep recovery)**: drawPile has exactly 2 stranded cards, Prep draws both back
-- **Step 5 (full draw)**: pile has exactly 3 = draw count, all recovered, oracle irrelevant
+- **NS/PS covers all cases**: the 3 drawn cards either include a Prep (NS) or don't (PS). Both paths return to anchor state
+- **Final step (full draw)**: both paths end by drawing exactly 3 from a 3-card shuffle — oracle has no control
 - **`sameModAccum` interchangeability**: both Prep+ have identical (name, cost, damage), sorted comparison matches regardless of which is where
 
 **drawCondBool bridge proof structure** (4 layers):
@@ -137,10 +148,14 @@ The eval harness checks LLM submissions for:
 
 ## Benchmark Distribution
 
-`sts_benchmark.tar.gz` contains the full benchmark without reference solutions. Extract and let the LLM agent read `INSTRUCTIONS.md` to complete the task.
+`sts_benchmark.tar.gz` contains the full benchmark without reference solutions. Run the following to start testing directly without cloning the repo:
 
 ```bash
-tar xzf sts_benchmark.tar.gz -C my_workspace/ && cd my_workspace/
+mkdir -p sts_benchmark
+curl -L -o sts_benchmark.tar.gz https://github.com/collinzrj/sts_lean/raw/main/sts_benchmark.tar.gz
+tar -xzf sts_benchmark.tar.gz -C sts_benchmark
+cd sts_benchmark
+claude --dangerously-skip-permissions "Read INSTRUCTIONS.md, then prove all theorems marked sorry in StSVerify/CombosTemplateL1/ and StSVerify/CombosTemplateL2/. Verify each proof compiles with lake build. If you finish, try the bonus challenges in StSVerify/ExtendedTargets.lean."
 ```
 
 Prompt:
