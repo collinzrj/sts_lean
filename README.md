@@ -129,7 +129,8 @@ generate_templates.py        — 从 combos_v2.jsonl 生成模板文件
 `sts_benchmark.tar.gz` 包含完整的 benchmark（不含参考解答）。解压后让 LLM agent 阅读 `INSTRUCTIONS.md` 并完成任务即可。
 
 ```bash
-tar xzf sts_benchmark.tar.gz -C my_workspace/ && cd my_workspace/
+mkdir sts_benchmark
+tar xzf sts_benchmark.tar.gz -C sts_benchmark/ && cd sts_benchmark/
 ```
 
 Prompt:
