@@ -35,63 +35,58 @@ def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := true }
 -- ============================================================
 
 /-
-  Strategy:
-  Turn 1: Draw DEM + powers + InnerPeace+. DEM triggers: +2 Miracles (ids 12,13), exhaust.
-    Play powers (Rushdown x2, MF+). Play Miracles for energy. InnerPeace+ enters Calm.
-  Turn 2: Draw remaining cards. Tantrum+ (Calm→Wrath, Rushdown draws). Exhaust TtTH, Vault, Scrawl.
-  Turn 3: Set up loop state with stance cycling.
+  Strategy (v2 engine):
+  Turn 1: Draw DEM + 3 powers + InnerPeace+.
+    Resolve DEM draw trigger (add 2 Miracles ids 12,13, exhaust DEM).
+    Play powers (Rushdown x2, MF+). Play Miracles for +2 energy.
+    Play InnerPeace+ to enter Calm.
+  Turn 2: Draw Tantrum+, FNE, TtTH, Vault+, Scrawl.
+    Play Tantrum+ (Calm->Wrath, auto Rushdown draws + Flurry auto damage).
+    Draw from Rushdown: Eruption+, Flurry+, then shuffle disc for Tantrum+, IP+.
+    Play TtTH (exhaust), Vault+ (exhaust), Scrawl (exhaust, draw to full, piles empty).
+    End turn.
+  Turn 3: Draw all 5 cards from disc.
+    Play FNE (Wrath->Calm), Eruption+ (Calm->Wrath, Rushdown draws).
+    Draw FNE and Eruption+ back. Play Flurry+ (Wrath), InnerPeace+ (Wrath->Calm).
 
-  Loop: Tantrum+ (Calm→Wrath), FNE (Wrath→Calm), Eruption+ (Calm→Wrath),
-    Flurry cycle. 73 damage per loop.
+  Loop: Tantrum+(Calm->Wrath), 4 Rushdown draws, FNE(Wrath->Calm),
+    Eruption+(Calm->Wrath), 4 Rushdown draws, Flurry+(Wrath), IP+(Wrath->Calm).
+    73 damage per loop.
 -/
 
 def setupTrace : List Action := [
-  -- Turn 1: draw 5
-  .draw 10, .draw 0, .draw 1, .draw 2, .draw 5,
-  .resolveDrawTrigger 10,       -- DEM: +2 Miracles (ids 12,13), exhaust DEM
-  .play 0,                      -- Rushdown (power), E=2
-  .play 1,                      -- Rushdown (power), E=1
-  .play 2,                      -- MF+ (power), E=0
-  .play 12,                     -- Miracle: E=1, exhaust
-  .play 13,                     -- Miracle: E=2, exhaust
-  .play 5,                      -- InnerPeace+: enter Calm, E=1
+  -- Turn 1: play powers
+  .draw 10, .resolveDrawTrigger 10,
+  .draw 0, .draw 1, .draw 2, .draw 5,
+  .play 0, .play 1, .play 2,
+  .play 12, .play 13,
+  .play 5,
   .endTurn,
-  -- Turn 2
+  -- Turn 2: Tantrum -> Rushdown draws -> exhaust utilities
   .draw 4, .draw 6, .draw 11, .draw 9, .draw 8,
-  .play 4,                      -- Tantrum+: Calm→Wrath +2E=4, 24dmg
-  .resolveRushdown,             -- +4 draws
+  .play 4,
   .draw 3, .draw 7, .draw 4, .draw 5,
-  .play 11,                     -- TtTH: 14dmg, exhaust, E=3
-  .play 9,                      -- Vault+: exhaust, E=1
-  .play 8,                      -- Scrawl: exhaust, E=0, draw to full
-  .failDraw,                    -- piles empty
+  .play 11, .play 9, .play 8,
+  .failDraw,
   .endTurn,
-  -- Turn 3
-  .draw 4, .draw 6, .draw 3, .draw 7, .draw 5,
-  .play 6,                      -- FNE: Wrath→Calm +2E+6blk, 22dmg
-  .play 3,                      -- Eruption+: Calm→Wrath +2E+6blk, 18dmg
-  .resolveRushdown,             -- +4 draws
+  -- Turn 3: cycle stances to set up loop
+  .draw 5, .draw 4, .draw 7, .draw 3, .draw 6,
+  .play 6, .play 3,
   .draw 6, .draw 3,
   .failDraw,
-  .play 7,                      -- Flurry: 12dmg Wrath
-  .play 5,                      -- InnerPeace+: →Calm +6blk
-  .autoPlayFlurry 7             -- Flurry auto: 6dmg
+  .play 7, .play 5
 ]
 
 def loopTrace : List Action := [
-  .play 4,                      -- Tantrum+: Calm→Wrath +2E, 24dmg +6blk
-  .resolveRushdown,             -- +4 draws
-  .autoPlayFlurry 7,            -- Flurry auto: 12dmg (Wrath)
+  .play 4,                      -- Tantrum+: Calm->Wrath, Rushdown 4 draws, Flurry auto 12 dmg
   .draw 4, .draw 5, .draw 7,
-  .failDraw,
-  .play 6,                      -- FNE: Wrath→Calm +2E+6blk, 22dmg
-  .play 3,                      -- Eruption+: Calm→Wrath +2E+6blk, 18dmg
-  .resolveRushdown,             -- +4 draws
-  .draw 6, .draw 3,
-  .failDraw,
-  .play 7,                      -- Flurry: 12dmg Wrath
-  .play 5,                      -- InnerPeace+: →Calm +6blk
-  .autoPlayFlurry 7             -- Flurry auto: 6dmg
+  .failDraw,                    -- 4th draw fails
+  .play 6,                      -- FNE: Wrath->Calm
+  .play 3,                      -- Eruption+: Calm->Wrath, Rushdown 4 draws
+  .draw 3, .draw 6,
+  .failDraw,                    -- remaining draws fail
+  .play 7,                      -- Flurry: Wrath
+  .play 5                       -- InnerPeace+: Wrath->Calm
 ]
 
 def stateA : GameState := {
@@ -124,8 +119,8 @@ def stateA : GameState := {
 }
 
 def stateB : GameState := {
-  hand := [ { id := 3, name := EruptionPlus, cost := 1, damage := 9 }
-           , { id := 6, name := FearNoEvilPlus, cost := 1, damage := 11 }
+  hand := [ { id := 6, name := FearNoEvilPlus, cost := 1, damage := 11 }
+           , { id := 3, name := EruptionPlus, cost := 1, damage := 9 }
            , { id := 4, name := TantrumPlus, cost := 1, damage := 12 } ]
   drawPile := []
   discardPile := [ { id := 5, name := InnerPeacePlus, cost := 1, damage := 0 }

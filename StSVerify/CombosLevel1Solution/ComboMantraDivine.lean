@@ -36,66 +36,73 @@ def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
 -- ============================================================
 
 /-
-  Strategy:
-  Turn 1: Draw Scrawl, Rushdown x2, Vault+, Deus Ex Machina.
+  Strategy (v2 engine):
+  Turn 1: Draw DEM + powers + Scrawl.
     Resolve DEM draw trigger (add 2 Miracles ids 13,14, exhaust DEM).
-    Play Miracles for +2 energy (total 5).
-    Play 2 Rushdowns, Scrawl (draw to full, exhaust).
-    Draw all remaining cards. Play MF+.
-    Recycle exhaust: Pray+, EmptyMind+, Prostrate+, Omniscience+, Vault+.
-    Play Inner Peace (enter Calm). Play Flurry.
+    Play Miracles, 3 powers, Scrawl (draw all remaining, exhaust).
+    Play Flurry, Prostrate, InnerPeace (enter Calm). End turn.
+  Turn 2: Draw 5, play InnerPeace (draw 3 from Calm).
+    Cycle: Flurry+Prostrate, EmptyMind(Calm->Neutral, draw 3), InnerPeace(->Calm).
+    Reach loop state with hand=[Erupt, Vault, Omni, Pray].
 
-  Loop: Eruption+ (Calm→Wrath, Rushdown draws, Flurry auto).
-    Draw cards, play Flurry (Wrath), Inner Peace (→Calm), Flurry auto.
-    39 damage per loop.
+  Loop: Eruption+(Calm->Wrath, auto Rushdown draws + Flurry auto).
+    Draw 4 from disc. Play Flurry(Wrath), IP(Wrath->Calm),
+    EmptyMind(Calm->Neutral, draw 3), IP(Neutral->Calm),
+    Flurry(Calm), Prostrate. 51 damage per loop.
 -/
 
 def setupTrace : List Action := [
-  .draw 9, .draw 0, .draw 1, .draw 10, .draw 11,
+  -- Turn 1
+  .draw 9, .draw 0, .draw 1, .draw 2, .draw 11,
   .resolveDrawTrigger 11,
   .play 13, .play 14,
-  .play 0, .play 1,
+  .play 0, .play 1, .play 2,
   .play 9,
-  .draw 2, .draw 3, .draw 4, .draw 5,
-  .draw 6, .draw 7, .draw 8, .draw 12,
+  .draw 3, .draw 4, .draw 5, .draw 6, .draw 7, .draw 8, .draw 10, .draw 12,
   .failDraw,
-  .play 2,
-  .recycleChoose 5, .recycleChoose 7, .recycleChoose 6,
-  .recycleChoose 12, .recycleChoose 10,
+  .play 8, .play 6, .play 4,
+  .endTurn,
+  -- Turn 2
+  .draw 3, .draw 4, .draw 5, .draw 10, .draw 12,
   .play 4,
-  .play 8
+  .draw 6, .draw 8, .draw 7,
+  .play 8, .play 6,
+  .play 7,
+  .draw 4, .draw 8, .draw 6,
+  .play 4, .play 8, .play 6
 ]
 
 def loopTrace : List Action := [
-  .play 3,
-  .resolveRushdown,
-  .autoPlayFlurry 8,
-  .draw 4, .draw 3, .draw 8,
-  .failDraw,
-  .play 8,
-  .play 4,
-  .autoPlayFlurry 8
+  .play 3,                         -- Eruption+ (Calm->Wrath, auto Rushdown + Flurry)
+  .draw 8, .draw 4, .draw 7, .draw 6,
+  .play 8,                         -- Flurry+ (Wrath)
+  .play 4,                         -- InnerPeace (Wrath->Calm)
+  .play 7,                         -- EmptyMind+ (Calm->Neutral, draw 3)
+  .draw 3, .draw 4, .draw 8,
+  .play 4,                         -- InnerPeace (Neutral->Calm)
+  .play 8,                         -- Flurry+ (Calm)
+  .play 6                          -- Prostrate+ (free)
 ]
 
 def stateA : GameState := {
-  hand := [ { id := 3, name := EruptionPlus, cost := 1, damage := 9 } ]
+  hand := [ { id := 12, name := OmnisciencePlus, cost := 3, damage := 0 }
+           , { id := 10, name := VaultPlus, cost := 2, damage := 0 }
+           , { id := 5, name := PrayPlus, cost := 1, damage := 0 }
+           , { id := 3, name := EruptionPlus, cost := 1, damage := 9 } ]
   drawPile := []
-  discardPile := [ { id := 8, name := FlurryOfBlowsPlus, cost := 0, damage := 6 }
-                 , { id := 4, name := InnerPeace, cost := 1, damage := 0 } ]
-  exhaustPile := [ { id := 10, name := VaultPlus, cost := 2, damage := 0 }
-                 , { id := 12, name := OmnisciencePlus, cost := 3, damage := 0 }
-                 , { id := 6, name := ProstatePlus, cost := 0, damage := 0 }
-                 , { id := 7, name := EmptyMindPlus, cost := 1, damage := 0 }
-                 , { id := 5, name := PrayPlus, cost := 1, damage := 0 }
-                 , { id := 9, name := Scrawl, cost := 1, damage := 0 }
+  discardPile := [ { id := 6, name := ProstatePlus, cost := 0, damage := 0 }
+                 , { id := 8, name := FlurryOfBlowsPlus, cost := 0, damage := 6 }
+                 , { id := 4, name := InnerPeace, cost := 1, damage := 0 }
+                 , { id := 7, name := EmptyMindPlus, cost := 1, damage := 0 } ]
+  exhaustPile := [ { id := 9, name := Scrawl, cost := 1, damage := 0 }
                  , { id := 14, name := Miracle, cost := 0, damage := 0 }
                  , { id := 13, name := Miracle, cost := 0, damage := 0 }
                  , { id := 11, name := DeusExMachina, cost := 0, damage := 0 } ]
   inUse := []
   actionQueue := []
-  energy := 7
-  damage := 6
-  block := 6
+  energy := 2
+  damage := 30
+  block := 22
   stance := .Calm
   orbs := []
   orbSlots := 3
@@ -108,24 +115,24 @@ def stateA : GameState := {
 }
 
 def stateB : GameState := {
-  hand := [ { id := 3, name := EruptionPlus, cost := 1, damage := 9 } ]
+  hand := [ { id := 3, name := EruptionPlus, cost := 1, damage := 9 }
+           , { id := 12, name := OmnisciencePlus, cost := 3, damage := 0 }
+           , { id := 10, name := VaultPlus, cost := 2, damage := 0 }
+           , { id := 5, name := PrayPlus, cost := 1, damage := 0 } ]
   drawPile := []
-  discardPile := [ { id := 4, name := InnerPeace, cost := 1, damage := 0 }
-                 , { id := 8, name := FlurryOfBlowsPlus, cost := 0, damage := 6 } ]
-  exhaustPile := [ { id := 10, name := VaultPlus, cost := 2, damage := 0 }
-                 , { id := 12, name := OmnisciencePlus, cost := 3, damage := 0 }
-                 , { id := 6, name := ProstatePlus, cost := 0, damage := 0 }
-                 , { id := 7, name := EmptyMindPlus, cost := 1, damage := 0 }
-                 , { id := 5, name := PrayPlus, cost := 1, damage := 0 }
-                 , { id := 9, name := Scrawl, cost := 1, damage := 0 }
+  discardPile := [ { id := 6, name := ProstatePlus, cost := 0, damage := 0 }
+                 , { id := 8, name := FlurryOfBlowsPlus, cost := 0, damage := 6 }
+                 , { id := 4, name := InnerPeace, cost := 1, damage := 0 }
+                 , { id := 7, name := EmptyMindPlus, cost := 1, damage := 0 } ]
+  exhaustPile := [ { id := 9, name := Scrawl, cost := 1, damage := 0 }
                  , { id := 14, name := Miracle, cost := 0, damage := 0 }
                  , { id := 13, name := Miracle, cost := 0, damage := 0 }
                  , { id := 11, name := DeusExMachina, cost := 0, damage := 0 } ]
   inUse := []
   actionQueue := []
-  energy := 7
-  damage := 45
-  block := 18
+  energy := 2
+  damage := 81
+  block := 51
   stance := .Calm
   orbs := []
   orbSlots := 3

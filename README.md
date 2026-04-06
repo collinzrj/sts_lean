@@ -144,7 +144,7 @@ mkdir -p sts_benchmark
 curl -L -o sts_benchmark.tar.gz https://github.com/collinzrj/sts_lean/raw/main/sts_benchmark.tar.gz
 tar -xzf sts_benchmark.tar.gz -C sts_benchmark
 cd sts_benchmark 
-claude --dangerously-skip-permissions "Read INSTRUCTIONS.md, then prove all theorems marked sorry in StSVerify/CombosTemplateL1/ and StSVerify/CombosTemplateL2/. Verify each proof compiles with lake build. If you finish, try the bonus challenges in StSVerify/ExtendedTargets.lean."
+claude --dangerously-skip-permissions -p "Read INSTRUCTIONS.md, then prove all theorems marked sorry in StSVerify/CombosTemplateL1/ and StSVerify/CombosTemplateL2/. Verify each proof compiles with lake build. If you finish, try the bonus challenges in StSVerify/ExtendedTargets.lean."
 ```
 
 Prompt:

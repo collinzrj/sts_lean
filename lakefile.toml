@@ -4,6 +4,7 @@ defaultTargets = ["stsverify"]
 
 [[lean_lib]]
 name = "StSVerify"
+precompileModules = false
 
 [[lean_exe]]
 name = "stsverify"

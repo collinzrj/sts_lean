@@ -252,7 +252,7 @@ private theorem clean_stateS1 : autoDrain cardDB stateS1 = stateS1 := by
 
 -- Step 2: draw HH1 (oracle shuffles singleton [hh1])
 private theorem step2_raw (oracle : ShuffleOracle) (hValid : validOracle oracle) :
-    drawCardL2 oracle 0 stateS1 0 = some (stateR2, 1) := by
+    drawCardL2 cardDB oracle 0 stateS1 0 = some (stateR2, 1) := by
   have hp : oracle 0 [hh1] = [hh1] := perm_singleton_eq hh1 _ (hValid 0 [hh1])
   simp only [hh1] at hp
   unfold drawCardL2
@@ -273,7 +273,7 @@ private theorem clean_stateS3 : autoDrain cardDB stateS3 = stateS3 := by
 
 -- Step 4: draw HH2 (oracle shuffles singleton [hh2])
 private theorem step4_raw (oracle : ShuffleOracle) (hValid : validOracle oracle) :
-    drawCardL2 oracle 1 stateS3 1 = some (stateR4, 2) := by
+    drawCardL2 cardDB oracle 1 stateS3 1 = some (stateR4, 2) := by
   have hp : oracle 1 [hh2] = [hh2] := perm_singleton_eq hh2 _ (hValid 1 [hh2])
   simp only [hh2] at hp
   unfold drawCardL2

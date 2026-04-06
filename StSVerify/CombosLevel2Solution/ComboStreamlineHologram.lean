@@ -1,18 +1,36 @@
 /-
-  故障机器人 - 流线型+全息影像+精简 (Level 2)
+  故障機器人 - 流線型+全息影像+精簡 (Level 2)
   Cards: 11
   v2 engine rewrite
 
-  No shuffle in the loop: all cards stay in hand via hologramChoose.
-  Loop is entirely deterministic (no draw actions), so oracle is irrelevant.
+  Engine v3 change: hologramChoose is now queue-gated.
+  New loop strategy uses Turbo+Skim+CoolheadedPlus+Recycle chain.
+
+  Loop: play CH first (so shuffle 0 is only [H2, H1] = 2 cards),
+  then Turbo, SL, Holograms, Skim (shuffle 1 = 4 cards), Recycle, Holograms.
+
+  Shuffle 0: disc=[H2, H1] -> 2! = 2 perms
+  Shuffle 1: disc=[H2, SL, Turbo, Void] -> 4! = 24 perms
+  Total: 48 cases, all verified by native_decide in batches.
 -/
 
 import StSVerify.Engine
+import StSVerify.EngineHelperLemmas
 import StSVerify.CardDB
 
 open CardName Action
 
 namespace ComboStreamlineHologram_L2
+
+-- ============================================================
+-- CARD INSTANCES
+-- ============================================================
+
+private def ci0  : CardInstance := { id := 0,  name := StreamlinePlus,  cost := 0, damage := 20 }
+private def ci1  : CardInstance := { id := 1,  name := HologramPlus,    cost := 0, damage := 0 }
+private def ci2  : CardInstance := { id := 2,  name := HologramPlus,    cost := 0, damage := 0 }
+private def ci9  : CardInstance := { id := 9,  name := TurboPlus,       cost := 0, damage := 0 }
+private def ci12 : CardInstance := { id := 12, name := Void,            cost := 0, damage := 0 }
 
 -- ============================================================
 -- Deck definition (v2: CardName × count)
@@ -33,218 +51,313 @@ def cards : List (CardName × Nat) :=
 
 def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
 
--- Card instance abbreviations
-def sl : CardInstance := { id := 0, name := StreamlinePlus, cost := 0, damage := 20 }
-def h1 : CardInstance := { id := 1, name := HologramPlus, cost := 0, damage := 0 }
-def h2 : CardInstance := { id := 2, name := HologramPlus, cost := 0, damage := 0 }
-
 -- ============================================================
--- Traces
+-- SETUP AND LOOP
 -- ============================================================
 
-def setupTrace : List Action := [
-  -- Turn 1: draw 5
-  .draw 0, .draw 7, .draw 3, .draw 8, .draw 9,
-  .play 0,                         -- Streamline+ (cost 2): 20 dmg, override→1
-  .recycleChoose 3,                -- exhaust Coolheaded+ (refund 1)
-  .recycleChoose 8,                -- exhaust Skim+ (refund 1)
-  .recycleChoose 9,                -- exhaust Turbo+ (refund 0)
-  .recycleChoose 7,                -- exhaust Recycle+ (refund 0)
-  .endTurn,
-  -- Turn 2: draw 5
-  .draw 4, .draw 5, .draw 6, .draw 10, .draw 1,
-  .play 4,                         -- Defragment+: +1 focus
-  .play 5,                         -- Biased Cognition+: +4 focus
-  .play 6,                         -- Capacitor+: +3 orb slots
-  .play 10,                        -- Reboot+: shuffle hand→draw, draw 5, exhaust
-  .draw 1, .draw 2,                -- draw from [c1,c2]
-  .draw 0,                         -- shuffle discard[c0]→draw, draw c0
-  .failDraw,                       -- 2 draws remaining, piles empty
-  .endTurn,
-  -- Turn 3: draw 3
-  .draw 0, .draw 1, .draw 2,
-  .failDraw,                       -- piles empty
-  .play 0,                         -- Streamline+ (cost 1→override 0)
-  .play 1,                         -- Hologram+: 5 block
-  .hologramChoose 0,               -- retrieve Streamline from discard
-  .play 2,                         -- Hologram+: 5 block
-  .hologramChoose 1,               -- retrieve Hologram #1
-  .hologramChoose 2                -- retrieve Hologram #2
-]
+def setupTrace : List Action :=
+  [ -- Turn 1: Draw powers + Reboot. Play 3 powers + Reboot.
+    .draw 4, .draw 5, .draw 6, .draw 0, .draw 10,
+    .play 4,   -- Defrag (power, 1E)
+    .play 5,   -- Biased Cognition (power, 1E)
+    .play 6,   -- Capacitor (power, 1E). E=0. OrbSlots=6. Focus=5.
+    .play 10,  -- Reboot (0E): shuffle hand into draw, draw 5, exhaust self
+    .draw 0, .draw 1, .draw 2, .draw 3, .draw 7,
+    .endTurn,
+    -- Turn 2: SL(2->1), CH(Frost#1)
+    .draw 8, .draw 9,
+    .draw 3, .draw 0, .draw 1,
+    .play 0,   -- SL (2E): 20dmg, cost 2->1
+    .play 3,   -- CH (1E): Frost#1, draw 2
+    .draw 2, .draw 7,
+    .endTurn,
+    -- Turn 3: SL(1->0), CH(Frost#2)
+    .draw 0, .draw 3, .draw 9, .draw 8, .draw 7,
+    .play 0,   -- SL (1E): 20dmg, cost 1->0
+    .play 3,   -- CH (1E): Frost#2, draw 2
+    .draw 1, .draw 2,
+    .endTurn,
+    -- Turns 4-7: CH for Frost #3-#6
+    .draw 3, .draw 0, .draw 9, .draw 8, .draw 7,
+    .play 3, .draw 1, .draw 2,
+    .endTurn,
+    .draw 3, .draw 0, .draw 9, .draw 8, .draw 7,
+    .play 3, .draw 1, .draw 2,
+    .endTurn,
+    .draw 3, .draw 0, .draw 9, .draw 8, .draw 7,
+    .play 3, .draw 1, .draw 2,
+    .endTurn,
+    .draw 3, .draw 0, .draw 9, .draw 8, .draw 7,
+    .play 3, .draw 1, .draw 2,
+    .endTurn,
+    -- Turn 8: Final arrangement
+    .draw 3, .draw 0, .draw 9, .draw 8, .draw 7,
+    .play 3,           -- CH (1E): Frost (stable at 6), draw 2
+    .draw 1, .draw 2,
+    .play 9,           -- Turbo (0E): +2E, Void(11) to disc
+    .play 8,           -- Skim (1E): draw 4
+    .draw 9, .draw 11, .draw 3, .failDraw,
+    .play 7,           -- Recycle: exhaust Void(11)
+    .recycleChoose 11,
+    .play 1,           -- H1: retrieve Rec
+    .hologramChoose 7,
+    .play 2,           -- H2: retrieve Skim
+    .hologramChoose 8
+  ]
 
-def loopTrace : List Action := [
-  .play 0,                         -- Streamline+ (0 cost): 20 dmg
-  .play 1,                         -- Hologram+ (0 cost): 5 block
-  .hologramChoose 0,               -- retrieve Streamline
-  .play 2,                         -- Hologram+ (0 cost): 5 block
-  .hologramChoose 1,               -- retrieve Hologram #1
-  .play 0,                         -- Streamline+ (0 cost): 20 dmg
-  .hologramChoose 0,               -- retrieve Streamline
-  .hologramChoose 2                -- retrieve Hologram #2
-]
-
-def exhaust_ : List CardInstance :=
-  [ { id := 10, name := RebootPlus, cost := 0, damage := 0 }
-  , { id := 7, name := RecyclePlus, cost := 0, damage := 0 }
-  , { id := 9, name := TurboPlus, cost := 0, damage := 0 }
-  , { id := 8, name := SkimPlus, cost := 1, damage := 0 }
-  , { id := 3, name := CoolheadedPlus, cost := 1, damage := 0 } ]
-
-def powers_ : List CardName := [CapacitorPlus, BiasedCognitionPlus, DefragmentPlus]
+-- Loop trace parameterized by shuffle outputs
+-- sh0: permutation of [H2, H1] (2 cards, shuffle 0 at CH draw)
+-- sh1: permutation of [H2, SL, Turbo, Void] (4 cards, shuffle 1 at Skim draw)
+def mkLoopTrace (sh0 sh1 : List CardInstance) : List Action :=
+  match sh0 with
+  | [a, b] =>
+    match sh1 with
+    | [p, q, r, s] =>
+      [ .play 3,           -- CH (1E): Frost, draw 2
+        .draw a.id, .draw b.id,  -- draw from shuffle 0
+        .play 9,           -- Turbo (0E): +2E, Void(12) to disc
+        .play 0,           -- SL (0E): 20dmg
+        .play 1,           -- H1: retrieve CH
+        .hologramChoose 3,
+        .play 2,           -- H2: retrieve H1
+        .hologramChoose 1,
+        .play 8,           -- Skim (1E): draw 4
+        .draw p.id, .draw q.id, .draw r.id, .draw s.id,  -- draw from shuffle 1
+        .play 7,           -- Recycle: exhaust Void(12)
+        .recycleChoose 12,
+        .play 1,           -- H1: retrieve Rec
+        .hologramChoose 7,
+        .play 2,           -- H2: retrieve Skim
+        .hologramChoose 8
+      ]
+    | _ => []
+  | _ => []
 
 def stateA : GameState := {
-  hand := [h2, h1, sl]
+  hand := [{ id := 8, name := SkimPlus, cost := 1, damage := 0 },
+           { id := 7, name := RecyclePlus, cost := 0, damage := 0 },
+           { id := 3, name := CoolheadedPlus, cost := 1, damage := 0 },
+           { id := 9, name := TurboPlus, cost := 0, damage := 0 },
+           { id := 0, name := StreamlinePlus, cost := 0, damage := 20 }]
   drawPile := []
-  discardPile := []
-  exhaustPile := exhaust_
+  discardPile := [{ id := 2, name := HologramPlus, cost := 0, damage := 0 },
+                  { id := 1, name := HologramPlus, cost := 0, damage := 0 }]
+  exhaustPile := [{ id := 11, name := Void, cost := 0, damage := 0 },
+                  { id := 10, name := RebootPlus, cost := 0, damage := 0 }]
   inUse := []
   actionQueue := []
-  energy := 2
+  energy := 3
   damage := 40
   block := 10
   stance := .Neutral
-  orbs := []
+  orbs := [.Frost, .Frost, .Frost, .Frost, .Frost, .Frost]
   orbSlots := 6
   focus := 5
   enemy := { vulnerable := 0, weak := 0, intending := false }
-  activePowers := powers_
-  nextId := 11
-  noDraw := false
-  corruptionActive := false
-}
-
-def stateB : GameState := {
-  hand := [h2, sl, h1]
-  drawPile := []
-  discardPile := []
-  exhaustPile := exhaust_
-  inUse := []
-  actionQueue := []
-  energy := 2
-  damage := 80
-  block := 20
-  stance := .Neutral
-  orbs := []
-  orbSlots := 6
-  focus := 5
-  enemy := { vulnerable := 0, weak := 0, intending := false }
-  activePowers := powers_
-  nextId := 11
+  activePowers := [CapacitorPlus, BiasedCognitionPlus, DefragmentPlus]
+  nextId := 12
   noDraw := false
   corruptionActive := false
 }
 
 -- ============================================================
--- VERIFICATION (Level 2: guaranteed despite shuffle randomness)
+-- BASIC VERIFICATION
 -- ============================================================
 
 theorem setup_ok :
     execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA := by
   native_decide
 
-theorem no_end : noEndTurn loopTrace = true := by native_decide
-theorem same_mod : sameModAccum stateA stateB = true := by native_decide
-theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
+-- ============================================================
+-- SHUFFLE PILES AND ORACLE
+-- ============================================================
 
--- Loop intermediate states
--- After play 0 (Streamline+): inUse=[sl], q=[resolveCard 0]
--- autoDrain resolves -> sl to discard
-private def t1 : GameState := {
-  hand := [h2, h1], drawPile := [], discardPile := [sl], exhaustPile := exhaust_,
-  inUse := [], actionQueue := [], energy := 2, damage := 60, block := 10,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
+-- Pile 0: discard at time of CH's draw effect (only H2, H1)
+private def pile0 : List CardInstance := [ci2, ci1]
 
--- After play 1 (Hologram+): inUse=[h1], q=[resolveCard 1]
--- autoDrain resolves -> h1 to discard
-private def t2 : GameState := {
-  hand := [h2], drawPile := [], discardPile := [h1, sl], exhaustPile := exhaust_,
-  inUse := [], actionQueue := [], energy := 2, damage := 60, block := 15,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
+-- Pile 1: discard at time of Skim's draw effect (H2, SL, Turbo, Void)
+private def pile1 : List CardInstance := [ci2, ci0, ci9, ci12]
 
--- After hologramChoose 0 (retrieve Streamline)
-private def t3 : GameState := {
-  hand := [sl, h2], drawPile := [], discardPile := [h1], exhaustPile := exhaust_,
-  inUse := [], actionQueue := [], energy := 2, damage := 60, block := 15,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
+private def fixedOracle (p0 : List CardInstance) (p1 : List CardInstance) : ShuffleOracle :=
+  fun idx _ => if idx == 0 then p0 else if idx == 1 then p1 else []
 
--- After play 2 (Hologram+): inUse=[h2], q=[resolveCard 2]
--- autoDrain resolves -> h2 to discard
-private def t4 : GameState := {
-  hand := [sl], drawPile := [], discardPile := [h2, h1], exhaustPile := exhaust_,
-  inUse := [], actionQueue := [], energy := 2, damage := 60, block := 20,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
+-- ============================================================
+-- drawCondBool BRIDGE
+-- ============================================================
 
--- After hologramChoose 1 (retrieve Holo1)
-private def t5 : GameState := {
-  hand := [h1, sl], drawPile := [], discardPile := [h2], exhaustPile := exhaust_,
-  inUse := [], actionQueue := [], energy := 2, damage := 60, block := 20,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
+private def drawCondBool (fo : ShuffleOracle) (si : Nat) (s : GameState)
+    : List Action → Bool
+  | [] => true
+  | a :: rest =>
+    let sc := autoDrain cardDB s
+    let dpOk := match a with
+      | .draw _ => sc.drawPile.length > 0 ||
+                   (decide (si = 0) && decide (sc.discardPile = pile0)) ||
+                   (decide (si = 1) && decide (sc.discardPile = pile1))
+      | _ => true
+    match stepL2 cardDB fo si sc a with
+    | some (s', si') => dpOk && drawCondBool fo si' s' rest
+    | none => false
 
--- After play 0 again (Streamline+): inUse=[sl], q=[resolveCard 0]
--- autoDrain resolves -> sl to discard
-private def t6 : GameState := {
-  hand := [h1], drawPile := [], discardPile := [sl, h2], exhaustPile := exhaust_,
-  inUse := [], actionQueue := [], energy := 2, damage := 80, block := 20,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
+private theorem drawCondBool_bridge (oracle fo : ShuffleOracle)
+    (h0 : oracle 0 pile0 = fo 0 pile0) (h1 : oracle 1 pile1 = fo 1 pile1)
+    (si : Nat) (s : GameState) (trace : List Action)
+    (hb : drawCondBool fo si s trace = true) :
+    executeL2 cardDB oracle si s trace = executeL2 cardDB fo si s trace := by
+  induction trace generalizing si s with
+  | nil => rfl
+  | cons a rest ih =>
+    simp only [drawCondBool] at hb
+    match hfo : stepL2 cardDB fo si (autoDrain cardDB s) a with
+    | none => rw [hfo] at hb; simp at hb
+    | some (s', si') =>
+      rw [hfo] at hb; simp only [Bool.and_eq_true] at hb; obtain ⟨hdpOk, hrest⟩ := hb
+      have h_step_eq : stepL2 cardDB oracle si (autoDrain cardDB s) a =
+                       stepL2 cardDB fo si (autoDrain cardDB s) a := by
+        cases a with
+        | draw c =>
+          apply stepL2_oracle_cond
+          by_cases hdp : (autoDrain cardDB s).drawPile = []
+          · right
+            simp only [hdp, List.length_nil, Nat.lt_irrefl, gt_iff_lt, false_or,
+                       Bool.or_eq_true, decide_eq_true_eq, Bool.and_eq_true] at hdpOk
+            rcases hdpOk with ⟨hsi, hdisc⟩ | ⟨hsi, hdisc⟩
+            · rw [hsi, hdisc]; exact h0
+            · rw [hsi, hdisc]; exact h1
+          · left; exact hdp
+        | _ => rfl
+      show (let sc := autoDrain cardDB s
+            match stepL2 cardDB oracle si sc a with
+            | none => none | some (s'', si'') => executeL2 cardDB oracle si'' s'' rest) =
+           (let sc := autoDrain cardDB s
+            match stepL2 cardDB fo si sc a with
+            | none => none | some (s'', si'') => executeL2 cardDB fo si'' s'' rest)
+      simp only [h_step_eq, hfo]; exact ih si' s' hrest
 
--- After hologramChoose 0 (retrieve Streamline)
-private def t7 : GameState := {
-  hand := [sl, h1], drawPile := [], discardPile := [h2], exhaustPile := exhaust_,
-  inUse := [], actionQueue := [], energy := 2, damage := 80, block := 20,
-  stance := .Neutral, orbs := [], orbSlots := 6, focus := 5,
-  enemy := { vulnerable := 0, weak := 0, intending := false },
-  activePowers := powers_, nextId := 11, noDraw := false, corruptionActive := false }
+-- ============================================================
+-- PERMUTATION ENUMERATION AND VERIFICATION
+-- ============================================================
 
--- After hologramChoose 2 (retrieve Holo2) = stateB
+-- All permutations of pile0 = [H2, H1] (2 elements)
+private def allPerms2 : List (List CardInstance) :=
+  [ [ci2, ci1], [ci1, ci2] ]
 
--- Step & clean lemmas (autoDrain now handles resolveCard)
-private theorem c0 : autoDrain cardDB stateA = stateA := by native_decide
-private theorem s1 : step cardDB stateA (.play 0) = some { t1 with inUse := [sl], actionQueue := [.resolveCard 0], discardPile := [] } := by native_decide
-private theorem c1 : autoDrain cardDB { t1 with inUse := [sl], actionQueue := [.resolveCard 0], discardPile := [] } = t1 := by native_decide
-private theorem s2 : step cardDB t1 (.play 1) = some { t2 with inUse := [h1], actionQueue := [.resolveCard 1], discardPile := [sl] } := by native_decide
-private theorem c2 : autoDrain cardDB { t2 with inUse := [h1], actionQueue := [.resolveCard 1], discardPile := [sl] } = t2 := by native_decide
-private theorem s3 : step cardDB t2 (.hologramChoose 0) = some t3 := by native_decide
-private theorem c3 : autoDrain cardDB t3 = t3 := by native_decide
-private theorem s4 : step cardDB t3 (.play 2) = some { t4 with inUse := [h2], actionQueue := [.resolveCard 2], discardPile := [h1] } := by native_decide
-private theorem c4 : autoDrain cardDB { t4 with inUse := [h2], actionQueue := [.resolveCard 2], discardPile := [h1] } = t4 := by native_decide
-private theorem s5 : step cardDB t4 (.hologramChoose 1) = some t5 := by native_decide
-private theorem c5 : autoDrain cardDB t5 = t5 := by native_decide
-private theorem s6 : step cardDB t5 (.play 0) = some { t6 with inUse := [sl], actionQueue := [.resolveCard 0], discardPile := [h2] } := by native_decide
-private theorem c6 : autoDrain cardDB { t6 with inUse := [sl], actionQueue := [.resolveCard 0], discardPile := [h2] } = t6 := by native_decide
-private theorem s7 : step cardDB t6 (.hologramChoose 0) = some t7 := by native_decide
-private theorem c7 : autoDrain cardDB t7 = t7 := by native_decide
-private theorem s8 : step cardDB t7 (.hologramChoose 2) = some stateB := by native_decide
-private theorem cB : autoDrain cardDB stateB = stateB := by native_decide
+-- All permutations of pile1 = [H2, SL, Turbo, Void] (4 elements)
+private def allPerms4 : List (List CardInstance) :=
+  [ [ci2, ci0, ci9, ci12], [ci2, ci0, ci12, ci9], [ci2, ci9, ci0, ci12], [ci2, ci9, ci12, ci0],
+    [ci2, ci12, ci0, ci9], [ci2, ci12, ci9, ci0],
+    [ci0, ci2, ci9, ci12], [ci0, ci2, ci12, ci9], [ci0, ci9, ci2, ci12], [ci0, ci9, ci12, ci2],
+    [ci0, ci12, ci2, ci9], [ci0, ci12, ci9, ci2],
+    [ci9, ci2, ci0, ci12], [ci9, ci2, ci12, ci0], [ci9, ci0, ci2, ci12], [ci9, ci0, ci12, ci2],
+    [ci9, ci12, ci2, ci0], [ci9, ci12, ci0, ci2],
+    [ci12, ci2, ci0, ci9], [ci12, ci2, ci9, ci0], [ci12, ci0, ci2, ci9], [ci12, ci0, ci9, ci2],
+    [ci12, ci9, ci2, ci0], [ci12, ci9, ci0, ci2] ]
 
-/-- No draw actions in the loop, so oracle is irrelevant. -/
-theorem loop_executeL2_eq (oracle : ShuffleOracle) :
-    executeL2 cardDB oracle 0 stateA loopTrace = some (stateB, 0) := by
-  simp only [loopTrace, executeL2, stepL2]
-  rw [c0, s1]; simp only []
-  rw [c1, s2]; simp only []
-  rw [c2, s3]; simp only []
-  rw [c3, s4]; simp only []
-  rw [c4, s5]; simp only []
-  rw [c5, s6]; simp only []
-  rw [c6, s7]; simp only []
-  rw [c7, s8]; simp only []
-  rw [cB]
+private def verifyOne (p0 : List CardInstance) (p1 : List CardInstance) : Bool :=
+  let fo := fixedOracle p0 p1
+  let trace := mkLoopTrace p0 p1
+  match executeL2 cardDB fo 0 stateA trace with
+  | some (stB, _) =>
+    sameModAccum stateA stB && dealtDamage stateA stB &&
+    drawCondBool fo 0 stateA trace && noEndTurn trace
+  | none => false
+
+-- Verify one pile0 permutation against all pile1 permutations
+private def verifyP0 (p0 : List CardInstance) : Bool :=
+  allPerms4.all fun p1 => verifyOne p0 p1
+
+-- Batch: verify for p0 = [ci2, ci1]
+set_option maxHeartbeats 16000000 in
+private theorem verify_p0a : verifyP0 [ci2, ci1] = true := by native_decide
+
+-- Batch: verify for p0 = [ci1, ci2]
+set_option maxHeartbeats 16000000 in
+private theorem verify_p0b : verifyP0 [ci1, ci2] = true := by native_decide
+
+-- ============================================================
+-- PERMUTATION MEMBERSHIP LEMMAS
+-- ============================================================
+
+-- Singleton perm helper
+private theorem perm_singleton_eq (a : CardInstance) (l : List CardInstance)
+    (h : List.Perm l [a]) : l = [a] :=
+  List.perm_singleton.mp h
+
+-- 2-element perm membership
+set_option maxHeartbeats 800000 in
+private theorem perm2_mem (l : List CardInstance) (hp : l.Perm pile0) : l ∈ allPerms2 := by
+  have hlen := hp.length_eq; simp [pile0] at hlen
+  match l, hlen with
+  | [a, b], _ =>
+    have ha : a ∈ pile0 := hp.mem_iff.mp (by simp)
+    have hb : b ∈ pile0 := hp.mem_iff.mp (by simp)
+    simp only [pile0, ci2, ci1, List.mem_cons, List.mem_singleton, List.mem_nil_iff,
+               or_false] at ha hb
+    have hnd : [a, b].Nodup := hp.nodup_iff.mpr (by decide)
+    simp only [List.nodup_cons, List.mem_cons, List.mem_singleton, List.mem_nil_iff,
+               not_or, List.not_mem_nil, not_false_eq_true, and_true] at hnd
+    rcases ha with rfl | rfl <;> rcases hb with rfl | rfl <;>
+      (try exact absurd rfl hnd.1) <;>
+      simp [allPerms2, ci1, ci2]
+
+-- 4-element perm membership
+set_option maxHeartbeats 6400000 in
+private theorem perm4_mem (l : List CardInstance) (hp : l.Perm pile1) : l ∈ allPerms4 := by
+  have hlen := hp.length_eq; simp [pile1] at hlen
+  match l, hlen with
+  | [a, b, c, d], _ =>
+    have ha : a ∈ pile1 := hp.mem_iff.mp (by simp)
+    have hb : b ∈ pile1 := hp.mem_iff.mp (by simp)
+    have hc : c ∈ pile1 := hp.mem_iff.mp (by simp)
+    have hd : d ∈ pile1 := hp.mem_iff.mp (by simp)
+    simp only [pile1, ci2, ci0, ci9, ci12, List.mem_cons, List.mem_singleton, List.mem_nil_iff,
+               or_false] at ha hb hc hd
+    have hnd : [a, b, c, d].Nodup := hp.nodup_iff.mpr (by decide)
+    rcases ha with rfl | rfl | rfl | rfl <;>
+      rcases hb with rfl | rfl | rfl | rfl <;>
+      rcases hc with rfl | rfl | rfl | rfl <;>
+      rcases hd with rfl | rfl | rfl | rfl <;>
+      simp (config := { decide := false }) only [allPerms4, ci2, ci0, ci9, ci12,
+        List.mem_cons, List.mem_singleton, List.mem_nil_iff, or_false, or_true, true_or] <;>
+      (revert hnd; native_decide)
+
+-- ============================================================
+-- MAIN HANDLER
+-- ============================================================
+
+private theorem handle_loop (p0 : List CardInstance) (p1 : List CardInstance)
+    (hmem0 : p0 ∈ allPerms2) (hmem1 : p1 ∈ allPerms4)
+    (oracle : ShuffleOracle)
+    (h0 : oracle 0 pile0 = p0) (h1 : oracle 1 pile1 = p1) :
+    ∃ t sB fi, executeL2 cardDB oracle 0 stateA t = some (sB, fi)
+      ∧ noEndTurn t = true ∧ sameModAccum stateA sB = true ∧ dealtDamage stateA sB = true := by
+  -- Extract verifyOne from the batch theorems
+  have hv : verifyOne p0 p1 = true := by
+    simp only [allPerms2, List.mem_cons, List.mem_singleton, List.mem_nil_iff, or_false] at hmem0
+    rcases hmem0 with rfl | rfl
+    · have h := verify_p0a; unfold verifyP0 at h; rw [List.all_eq_true] at h
+      exact h p1 hmem1
+    · have h := verify_p0b; unfold verifyP0 at h; rw [List.all_eq_true] at h
+      exact h p1 hmem1
+  simp only [verifyOne] at hv
+  split at hv
+  · next stB fIdx heq =>
+    simp only [Bool.and_eq_true] at hv; obtain ⟨⟨⟨hsm, hdd⟩, hdc⟩, hne⟩ := hv
+    have hf0 : oracle 0 pile0 = fixedOracle p0 p1 0 pile0 := by simp [fixedOracle]; exact h0
+    have hf1 : oracle 1 pile1 = fixedOracle p0 p1 1 pile1 := by simp [fixedOracle]; exact h1
+    exact ⟨_, stB, fIdx, (drawCondBool_bridge oracle _ hf0 hf1 0 stateA _ hdc) ▸ heq, hne, hsm, hdd⟩
+  · simp at hv
+
+-- ============================================================
+-- MAIN THEOREM
+-- ============================================================
 
 theorem ComboStreamlineHologram_guaranteed_infinite :
     GuaranteedInfiniteCombo cardDB cards enemy := by
-  exact ⟨setupTrace, stateA, setup_ok, fun oracle _hvalid =>
-    ⟨loopTrace, stateB, 0, loop_executeL2_eq oracle, no_end, same_mod, dealt_dmg⟩⟩
+  refine ⟨setupTrace, stateA, setup_ok, ?_⟩
+  intro oracle hValid
+  have hp0 := perm2_mem (oracle 0 pile0) (hValid 0 pile0)
+  have hp1 := perm4_mem (oracle 1 pile1) (hValid 1 pile1)
+  exact handle_loop _ _ hp0 hp1 oracle rfl rfl
 
 end ComboStreamlineHologram_L2

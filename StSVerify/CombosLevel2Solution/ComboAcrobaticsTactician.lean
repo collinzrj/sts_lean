@@ -231,7 +231,7 @@ private theorem sL2_step {oracle : ShuffleOracle} {si : Nat} {s s' : GameState} 
   | _ => simp only [stepL2, hs]
 
 private theorem sL2_draw {oracle : ShuffleOracle} {si si' : Nat} {s s' : GameState} {c : CId}
-    (hd : drawCardL2 oracle si s c = some (s', si')) :
+    (hd : drawCardL2 cardDB oracle si s c = some (s', si')) :
     stepL2 cardDB oracle si s (.draw c) = some (s', si') := by
   simp only [stepL2, hd]
 
@@ -582,57 +582,57 @@ theorem hc15yy : autoDrain cardDB s15yy = stateByy := by native_decide
 
 -- Shuffle 0: singleton [ci6] from s2 (disc=[ci6])
 theorem hd3 (oracle : ShuffleOracle) (hv : validOracle oracle) :
-    drawCardL2 oracle 0 s2 6 = some (s3_raw, 1) := by
+    drawCardL2 cardDB oracle 0 s2 6 = some (s3_raw, 1) := by
   have hp := perm_one_ci ci6 _ (hv 0 [ci6])
   unfold drawCardL2; simp only [s2, ci6] at hp ⊢; rw [hp]; native_decide
 
 -- Shuffle 1: singleton [ci10] from s4 (disc=[ci10])
 theorem hd5 (oracle : ShuffleOracle) (hv : validOracle oracle) :
-    drawCardL2 oracle 1 s4 10 = some (s5, 2) := by
+    drawCardL2 cardDB oracle 1 s4 10 = some (s5, 2) := by
   have hp := perm_one_ci ci10 _ (hv 1 [ci10])
   unfold drawCardL2; simp only [s4, ci10] at hp ⊢; rw [hp]; native_decide
 
 -- Shuffle 2: [ci0, ci2] from s8 (disc=[ci0, ci2])
 theorem hd9x (oracle : ShuffleOracle) (h : oracle 2 [ci0, ci2] = [ci0, ci2]) :
-    drawCardL2 oracle 2 s8 0 = some (s9x, 3) := by
+    drawCardL2 cardDB oracle 2 s8 0 = some (s9x, 3) := by
   unfold drawCardL2; simp only [s8, ci0, ci2] at h ⊢; rw [h]; native_decide
 
 theorem hd9y (oracle : ShuffleOracle) (h : oracle 2 [ci0, ci2] = [ci2, ci0]) :
-    drawCardL2 oracle 2 s8 2 = some (s9y, 3) := by
+    drawCardL2 cardDB oracle 2 s8 2 = some (s9y, 3) := by
   unfold drawCardL2; simp only [s8, ci0, ci2] at h ⊢; rw [h]; native_decide
 
 -- Draw d2b (from drawPile, no shuffle)
 theorem hd10x (oracle : ShuffleOracle) :
-    drawCardL2 oracle 3 s9x 2 = some (s10x, 3) := rfl
+    drawCardL2 cardDB oracle 3 s9x 2 = some (s10x, 3) := rfl
 theorem hd10y (oracle : ShuffleOracle) :
-    drawCardL2 oracle 3 s9y 0 = some (s10y, 3) := rfl
+    drawCardL2 cardDB oracle 3 s9y 0 = some (s10y, 3) := rfl
 
 -- Shuffle 3: [ci1, ci3] from s12x/s12y (disc=[ci1, ci3])
 theorem hd13xp (oracle : ShuffleOracle) (h : oracle 3 [ci1, ci3] = [ci1, ci3]) :
-    drawCardL2 oracle 3 s12x 1 = some (s13xp, 4) := by
+    drawCardL2 cardDB oracle 3 s12x 1 = some (s13xp, 4) := by
   unfold drawCardL2; simp only [s12x, ci1, ci3] at h ⊢; rw [h]; native_decide
 
 theorem hd13xq (oracle : ShuffleOracle) (h : oracle 3 [ci1, ci3] = [ci3, ci1]) :
-    drawCardL2 oracle 3 s12x 3 = some (s13xq, 4) := by
+    drawCardL2 cardDB oracle 3 s12x 3 = some (s13xq, 4) := by
   unfold drawCardL2; simp only [s12x, ci1, ci3] at h ⊢; rw [h]; native_decide
 
 theorem hd13yp (oracle : ShuffleOracle) (h : oracle 3 [ci1, ci3] = [ci1, ci3]) :
-    drawCardL2 oracle 3 s12y 1 = some (s13yp, 4) := by
+    drawCardL2 cardDB oracle 3 s12y 1 = some (s13yp, 4) := by
   unfold drawCardL2; simp only [s12y, ci1, ci3] at h ⊢; rw [h]; native_decide
 
 theorem hd13yq (oracle : ShuffleOracle) (h : oracle 3 [ci1, ci3] = [ci3, ci1]) :
-    drawCardL2 oracle 3 s12y 3 = some (s13yq, 4) := by
+    drawCardL2 cardDB oracle 3 s12y 3 = some (s13yq, 4) := by
   unfold drawCardL2; simp only [s12y, ci1, ci3] at h ⊢; rw [h]; native_decide
 
 -- Draw d3b (from drawPile, no shuffle)
 theorem hd14xp (oracle : ShuffleOracle) :
-    drawCardL2 oracle 4 s13xp 3 = some (s14xp, 4) := rfl
+    drawCardL2 cardDB oracle 4 s13xp 3 = some (s14xp, 4) := rfl
 theorem hd14xq (oracle : ShuffleOracle) :
-    drawCardL2 oracle 4 s13xq 1 = some (s14xq, 4) := rfl
+    drawCardL2 cardDB oracle 4 s13xq 1 = some (s14xq, 4) := rfl
 theorem hd14yp (oracle : ShuffleOracle) :
-    drawCardL2 oracle 4 s13yp 3 = some (s14yp, 4) := rfl
+    drawCardL2 cardDB oracle 4 s13yp 3 = some (s14yp, 4) := rfl
 theorem hd14yq (oracle : ShuffleOracle) :
-    drawCardL2 oracle 4 s13yq 1 = some (s14yq, 4) := rfl
+    drawCardL2 cardDB oracle 4 s13yq 1 = some (s14yq, 4) := rfl
 
 -- ============================================================
 -- PER-CASE LOOP PROOFS
