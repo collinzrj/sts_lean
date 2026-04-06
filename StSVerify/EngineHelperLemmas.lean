@@ -17,10 +17,11 @@ theorem executeL2_oracle_ext
 /-- If two oracles agree on (shIdx, s.discardPile), drawCardL2 gives the same result.
     This is the key building block for oracle bridge proofs: the oracle only appears
     once in drawCardL2, at `oracle shIdx s.discardPile`. -/
-theorem drawCardL2_oracle_agree (oracle1 oracle2 : ShuffleOracle) (shIdx : Nat)
+theorem drawCardL2_oracle_agree (cardDB : CardName → CardDef)
+    (oracle1 oracle2 : ShuffleOracle) (shIdx : Nat)
     (s : GameState) (cardId : CId)
     (h : oracle1 shIdx s.discardPile = oracle2 shIdx s.discardPile) :
-    drawCardL2 oracle1 shIdx s cardId = drawCardL2 oracle2 shIdx s cardId := by
+    drawCardL2 cardDB oracle1 shIdx s cardId = drawCardL2 cardDB oracle2 shIdx s cardId := by
   unfold drawCardL2
   simp only [h]
 
@@ -31,14 +32,15 @@ theorem stepL2_oracle_agree (cardDB : CardName → CardDef)
     stepL2 cardDB oracle1 shIdx s a = stepL2 cardDB oracle2 shIdx s a := by
   unfold stepL2
   cases a with
-  | draw c => exact drawCardL2_oracle_agree oracle1 oracle2 shIdx s c h
+  | draw c => exact drawCardL2_oracle_agree cardDB oracle1 oracle2 shIdx s c h
   | _ => rfl
 
 /-- When drawPile is non-empty, drawCardL2 does not call the oracle,
     so the result is the same for any two oracles. -/
-theorem drawCardL2_nonempty_irrel (oracle1 oracle2 : ShuffleOracle) (shIdx : Nat)
+theorem drawCardL2_nonempty_irrel (cardDB : CardName → CardDef)
+    (oracle1 oracle2 : ShuffleOracle) (shIdx : Nat)
     (s : GameState) (cardId : CId) (h : s.drawPile ≠ []) :
-    drawCardL2 oracle1 shIdx s cardId = drawCardL2 oracle2 shIdx s cardId := by
+    drawCardL2 cardDB oracle1 shIdx s cardId = drawCardL2 cardDB oracle2 shIdx s cardId := by
   unfold drawCardL2
   have h_cond : ¬ ((s.drawPile.length == 0 && decide (s.discardPile.length > 0)) = true) := by
     intro hc; simp only [Bool.and_eq_true, beq_iff_eq] at hc
@@ -56,8 +58,8 @@ theorem stepL2_oracle_cond (cardDB : CardName → CardDef)
   cases a with
   | draw c =>
     cases h with
-    | inl h => exact drawCardL2_nonempty_irrel oracle1 oracle2 shIdx s c h
-    | inr h => exact drawCardL2_oracle_agree oracle1 oracle2 shIdx s c h
+    | inl h => exact drawCardL2_nonempty_irrel cardDB oracle1 oracle2 shIdx s c h
+    | inr h => exact drawCardL2_oracle_agree cardDB oracle1 oracle2 shIdx s c h
   | _ => rfl
 
 /-- Recursive condition: at each step along o1's execution, either

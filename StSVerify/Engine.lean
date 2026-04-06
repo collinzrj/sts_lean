@@ -86,6 +86,7 @@ inductive CardEffect where
   | secondWind (blockPer : Nat) -- Second Wind: exhaust all non-attacks, gain block
   | requireEmptyDrawPile      -- Grand Finale: precondition, checked in playCard
   | stormOfSteel (token : CardName) -- Storm of Steel: discard hand, add 1 token per card
+  | recycleExhaust              -- Recycle: exhaust 1 card from hand for energy refund
   deriving Repr, DecidableEq, BEq
 
 /-! ## Queue System -/
@@ -104,6 +105,10 @@ inductive QueueItem where
   | exhaustChoice             -- player chooses which card to exhaust from hand
   | discardSpecific (c : CId) -- auto: discard this specific card (Storm right-to-left)
   | resolveCard (c : CId)     -- auto: move played card from inUse to destination (discard/exhaust/drawPile)
+  | hologramChoice            -- player chooses which card to retrieve from discard
+  | allForOneChoice           -- player chooses which 0-cost cards to retrieve from discard
+  | recycleChoice             -- player chooses which card to exhaust for energy refund
+  | drawTrigger (c : CId)    -- resolve on-draw trigger for this card (Deus Ex Machina, Void)
   deriving Repr, DecidableEq, BEq
 
 /-! ## Card Definition (static, looked up by CardName from cardDB) -/
@@ -360,6 +365,35 @@ def shouldShuffleSelf (cardDB : CardName → CardDef) (card : CardInstance) : Bo
   let def_ := cardDB card.name
   def_.effects.any (· == .shuffleSelf)
 
+/-- Stance change: handles stance transition and immediate effects.
+    1. Exit current stance (Calm → +2 energy, Mental Fortress → block)
+    2. Enter new stance
+    Does nothing if already in the target stance.
+    Note: Rushdown draws and Flurry damage are NOT handled here — they fire
+    AFTER the played card resolves (moves to drawPile/discard). See playCard. -/
+def doStanceChange (s : GameState) (newStance : Stance) : GameState :=
+  if s.stance == newStance then s
+  else
+    let exitE := match s.stance with | .Calm => 2 | _ => 0
+    let mfB := powerCount s CardName.MentalFortressPlus * 6
+    { s with stance := newStance, energy := s.energy + exitE, block := s.block + mfB }
+
+/-- Post-stance-change triggers: Rushdown draws + Flurry damage.
+    Called by playCard AFTER resolveCard is appended to the queue,
+    so the played card is already queued to move to its destination. -/
+def stanceChangeTriggers (s : GameState) (oldStance newStance : Stance) : GameState :=
+  if oldStance == newStance then s
+  else
+    -- Rushdown: draw 2 per copy when entering Wrath
+    let rushdownCount := powerCount s CardName.Rushdown
+    let s1 := if rushdownCount > 0 && newStance == .Wrath then
+        { s with actionQueue := s.actionQueue ++ List.replicate (rushdownCount * 2) .draw }
+      else s
+    -- Flurry of Blows: auto-play each copy from discard (6 damage each)
+    let flurryCount := s1.discardPile.filter (·.name == CardName.FlurryOfBlowsPlus) |>.length
+    let flurryDmg := flurryCount * applyDamage s1 6 true
+    { s1 with damage := s1.damage + flurryDmg }
+
 /-- Process a single CardEffect on the state -/
 def processEffect (cardDB : CardName → CardDef) (s : GameState) (eff : CardEffect)
     (isAttack : Bool) : GameState :=
@@ -396,34 +430,17 @@ def processEffect (cardDB : CardName → CardDef) (s : GameState) (eff : CardEff
   | .ifWeakDrawCards n =>
       if s.enemy.weak > 0 then { s with actionQueue := s.actionQueue ++ List.replicate n .draw } else s
   | .ifEnemyAttackingEnterStance st =>
-      if s.enemy.intending && s.stance != st then
-        let exitE := match s.stance with | .Calm => 2 | _ => 0
-        let mfB := powerCount s CardName.MentalFortressPlus * 6
-        { s with stance := st, energy := s.energy + exitE, block := s.block + mfB }
+      if s.enemy.intending then doStanceChange s st
       else s
   | .ifInStanceDrawCards st n =>
       if s.stance == st then { s with actionQueue := s.actionQueue ++ List.replicate n .draw } else s
   | .ifNotInStanceEnter st =>
-      if s.stance != st then
-        let exitE := match s.stance with | .Calm => 2 | _ => 0
-        let mfB := powerCount s CardName.MentalFortressPlus * 6
-        { s with stance := st, energy := s.energy + exitE, block := s.block + mfB }
-      else s
+      doStanceChange s st  -- doStanceChange already checks s.stance != st
   | .ifInStanceApplyVulnerable st n =>
       if s.stance == st then { s with enemy := { s.enemy with vulnerable := s.enemy.vulnerable + n } } else s
   -- Stance (with exit effects)
-  | .enterStance st =>
-      if s.stance == st then s
-      else
-        let exitE := match s.stance with | .Calm => 2 | _ => 0
-        let mfB := powerCount s CardName.MentalFortressPlus * 6
-        { s with stance := st, energy := s.energy + exitE, block := s.block + mfB }
-  | .exitStance =>
-      if s.stance == .Neutral then s
-      else
-        let exitE := match s.stance with | .Calm => 2 | _ => 0
-        let mfB := powerCount s CardName.MentalFortressPlus * 6
-        { s with stance := .Neutral, energy := s.energy + exitE, block := s.block + mfB }
+  | .enterStance st => doStanceChange s st
+  | .exitStance => doStanceChange s .Neutral
   -- Orbs / Focus
   | .gainFocus n => { s with focus := s.focus + Int.ofNat n }
   | .gainOrbSlots n => { s with orbSlots := s.orbSlots + n }
@@ -476,8 +493,14 @@ def processEffect (cardDB : CardName → CardDef) (s : GameState) (eff : CardEff
         nextId := s.nextId + count
         actionQueue := s.actionQueue ++ discards }
   -- Effects handled elsewhere (playCard checks these)
+  | .hologramRetrieve =>
+      { s with actionQueue := s.actionQueue ++ [.hologramChoice] }
+  | .allForOneRetrieve =>
+      { s with actionQueue := s.actionQueue ++ [.allForOneChoice] }
+  | .recycleExhaust =>
+      { s with actionQueue := s.actionQueue ++ [.recycleChoice] }
+  -- Effects handled elsewhere (playCard checks these)
   | .exhaustSelf | .shuffleSelf | .exhaustFromHand _
-  | .allForOneRetrieve | .hologramRetrieve
   | .costReduceSelf _ | .requireEmptyDrawPile => s
 
 /-- Play a card from hand -/
@@ -543,12 +566,16 @@ def playCard (cardDB : CardName → CardDef) (s : GameState) (cardId : CId)
           let fnpBlock := powerCount s6 CardName.FeelNoPainPlus * 4
           { s6 with actionQueue := s6.actionQueue ++ List.replicate deDraw .draw, block := s6.block + fnpBlock }
         else s6
-      some s7
+      -- Stance change triggers: Rushdown draws + Flurry damage
+      -- These fire AFTER resolveCard is in the queue, so the played card
+      -- will be in its destination (drawPile/discard) before draws fire.
+      let s8 := stanceChangeTriggers s7 s1.stance s7.stance
+      some s8
     else
       none
 
 /-- Draw a card (auto-shuffle if needed). -/
-def drawCard (s : GameState) (cardId : CId) : Option GameState :=
+def drawCard (cardDB : CardName → CardDef) (s : GameState) (cardId : CId) : Option GameState :=
   match s.actionQueue with
   | .draw :: rest =>
     if s.noDraw || s.hand.length >= 10 then none
@@ -560,10 +587,14 @@ def drawCard (s : GameState) (cardId : CId) : Option GameState :=
         else s
       match findById s'.drawPile cardId with
       | some card =>
+        let def_ := cardDB card.name
+        let triggerQueue := if def_.onDraw.length > 0
+          then [QueueItem.drawTrigger cardId]
+          else []
         some { s' with
           hand := card :: s'.hand
           drawPile := removeById s'.drawPile cardId
-          actionQueue := rest
+          actionQueue := triggerQueue ++ rest
         }
       | none => none
   | _ => none
@@ -661,16 +692,46 @@ def autoPlayFlurry (s : GameState) (cardId : CId) : Option GameState :=
     else none
   | none => none
 
-/-- Execute one action -/
+/-- Check if an action is allowed given the current action queue.
+    Play and endTurn require empty queue. All other actions require
+    a matching queue item at the front. -/
+def stepCheck (queue : List QueueItem) (a : Action) : Bool :=
+  match queue, a with
+  -- Free actions: only when queue is empty
+  | [], .play _ => true
+  | [], .endTurn => true
+  -- Queue-gated actions: must match front of queue
+  | .draw :: _, .draw _ => true
+  | .draw :: _, .failDraw => true
+  | .discardChoice :: _, .discard _ => true
+  | .exhaustChoice :: _, .exhaust _ => true
+  | .hologramChoice :: _, .hologramChoose _ => true
+  | .allForOneChoice :: _, .allForOneChoose _ => true
+  | .recycleChoice :: _, .recycleChoose _ => true
+  -- Draw trigger: queue-gated (drawCard enqueues .drawTrigger when card has onDraw)
+  | .drawTrigger _ :: _, .resolveDrawTrigger _ => true
+  -- Stance changes, Rushdown, and Flurry are now handled automatically by
+  -- doStanceChange (called from processEffect). These actions are kept for
+  -- backwards compatibility but will be rejected by stepCheck.
+  -- resolveGamble is TODO.
+  | _, .resolveGamble => true  -- TODO: needs proper queue gating
+  | _, _ => false
+
+/-- Execute one action. stepCheck validates the action is allowed
+    given the current queue state before dispatching. -/
 def step (cardDB : CardName → CardDef) (s : GameState) (a : Action)
     : Option GameState :=
-  match a with
+  if !stepCheck s.actionQueue a then none
+  else match a with
   | .play card              => playCard cardDB s card
-  | .draw card              => drawCard s card
+  | .draw card              => drawCard cardDB s card
   | .failDraw               => failDraw s
   | .discard card           => discardFromHand cardDB s card
   | .exhaust card           => exhaustFromHand s card
-  | .resolveDrawTrigger card    => resolveDrawTrigger cardDB s card
+  | .resolveDrawTrigger card =>
+      match s.actionQueue with
+      | .drawTrigger _ :: rest => resolveDrawTrigger cardDB { s with actionQueue := rest } card
+      | _ => none
   | .changeStance to        => changeStance s to
   | .resolveRushdown        => resolveRushdown s
   | .autoPlayFlurry card    => autoPlayFlurry s card
@@ -685,25 +746,34 @@ def step (cardDB : CardName → CardDef) (s : GameState) (a : Action)
           noDraw := false }
       else none
   | .hologramChoose card    =>
-      match findById s.discardPile card with
-      | some c => some { s with hand := c :: s.hand, discardPile := removeById s.discardPile card }
-      | none => none
+      match s.actionQueue with
+      | .hologramChoice :: rest =>
+        match findById s.discardPile card with
+        | some c => some { s with hand := c :: s.hand, discardPile := removeById s.discardPile card, actionQueue := rest }
+        | none => none
+      | _ => none
   | .allForOneChoose cards  =>
-      let found := cards.filterMap (findById s.discardPile)
-      if found.length == cards.length then
-        let dp := cards.foldl (fun acc cid => removeById acc cid) s.discardPile
-        some { s with hand := found ++ s.hand, discardPile := dp }
-      else none
+      match s.actionQueue with
+      | .allForOneChoice :: rest =>
+        let found := cards.filterMap (findById s.discardPile)
+        if found.length == cards.length then
+          let dp := cards.foldl (fun acc cid => removeById acc cid) s.discardPile
+          some { s with hand := found ++ s.hand, discardPile := dp, actionQueue := rest }
+        else none
+      | _ => none
   | .recycleChoose card     =>
-      match findById s.hand card with
-      | some c =>
-        let refund := c.cost
-        some { s with
-          hand := removeById s.hand card
-          exhaustPile := c :: s.exhaustPile
-          energy := s.energy + refund
-        }
-      | none => none
+      match s.actionQueue with
+      | .recycleChoice :: rest =>
+        match findById s.hand card with
+        | some c =>
+          let refund := c.cost
+          some { s with
+            hand := removeById s.hand card
+            exhaustPile := c :: s.exhaustPile
+            energy := s.energy + refund
+            actionQueue := rest }
+        | none => none
+      | _ => none
   | .resolveGamble => none  -- TODO: complex
 
 /-! ## Trace Execution -/
@@ -834,7 +904,7 @@ def validOracle (oracle : ShuffleOracle) : Prop :=
 
 /-- Draw a card with oracle-controlled shuffle.
     Returns updated state and new shuffle index. -/
-def drawCardL2 (oracle : ShuffleOracle) (shIdx : Nat) (s : GameState) (cardId : CId)
+def drawCardL2 (cardDB : CardName → CardDef) (oracle : ShuffleOracle) (shIdx : Nat) (s : GameState) (cardId : CId)
     : Option (GameState × Nat) :=
   match s.actionQueue with
   | .draw :: rest =>
@@ -849,10 +919,14 @@ def drawCardL2 (oracle : ShuffleOracle) (shIdx : Nat) (s : GameState) (cardId : 
       match s'.drawPile with
       | top :: drawRest =>
         if top.id == cardId then
+          let def_ := cardDB top.name
+          let triggerQueue := if def_.onDraw.length > 0
+            then [QueueItem.drawTrigger cardId]
+            else []
           some ({ s' with
             hand := top :: s'.hand
             drawPile := drawRest
-            actionQueue := rest }, shIdx')
+            actionQueue := triggerQueue ++ rest }, shIdx')
         else
           none
       | [] => none
@@ -863,7 +937,7 @@ def stepL2 (cardDB : CardName → CardDef)
     (oracle : ShuffleOracle) (shIdx : Nat) (s : GameState) (a : Action)
     : Option (GameState × Nat) :=
   match a with
-  | .draw card => drawCardL2 oracle shIdx s card
+  | .draw card => drawCardL2 cardDB oracle shIdx s card
   -- All other actions don't involve shuffle -- delegate to Level 1 step
   | other =>
       match step cardDB s other with
