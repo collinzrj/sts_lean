@@ -16,18 +16,11 @@
   -> draw 3 (Prep+Reflex+Tact) -> play 3 Shivs -> back to stateA
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboStormStrike
 
 open CardName Action
 
-namespace ComboStormStrike_Solution
-
-def cards : List (CardName × Nat) := [
-  (StormOfSteelPlus, 1), (TacticianPlus, 1), (ReflexPlus, 1),
-  (PreparedPlus, 1), (StrikeSilent, 1)]
-
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
+namespace ComboStormStrike_L1
 
 -- Card instance IDs:
 -- 0 = Storm of Steel+, 1 = Tactician+, 2 = Reflex+, 3 = Prepared+, 4 = Strike
@@ -125,4 +118,6 @@ theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 theorem is_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboStormStrike_Solution
+theorem proof : InfiniteCombo cardDB cards enemy := is_infinite
+
+end ComboStormStrike_L1

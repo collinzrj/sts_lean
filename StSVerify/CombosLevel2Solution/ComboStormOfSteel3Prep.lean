@@ -15,8 +15,8 @@
   Proof target: UnboundedDamage (not GuaranteedInfiniteCombo).
   Status: OPEN — no reference solution provided.
 -/
+import StSVerify.CombosSpecL2.ComboStormOfSteel3Prep
 import StSVerify.ExtendedTargets
-import StSVerify.CardDB
 open CardName Action
 
 namespace ComboStormOfSteel3Prep_L2
@@ -27,10 +27,6 @@ private def ci2 : CardInstance := { id := 2, name := ReflexPlus, cost := 0, dama
 private def ci3 : CardInstance := { id := 3, name := PreparedPlus, cost := 0, damage := 0 }
 private def ci4 : CardInstance := { id := 4, name := PreparedPlus, cost := 0, damage := 0 }
 private def ci5 : CardInstance := { id := 5, name := PreparedPlus, cost := 0, damage := 0 }
-
-def cards : List (CardName × Nat) := [
-  (StormOfSteelPlus, 1), (TacticianPlus, 1), (ReflexPlus, 1), (PreparedPlus, 3)]
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
 
 def setupTrace : List Action := [
   .draw 0, .draw 1, .draw 2, .draw 3, .draw 4,
@@ -72,5 +68,7 @@ theorem setup_ok :
 theorem ComboStormOfSteel3Prep_unbounded_damage :
     UnboundedDamage cardDB cards enemy := by
   sorry
+
+theorem proof : GuaranteedInfiniteCombo cardDB cards enemy := by sorry
 
 end ComboStormOfSteel3Prep_L2

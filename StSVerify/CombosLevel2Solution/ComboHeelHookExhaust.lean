@@ -10,24 +10,16 @@
   STRICT: native_decide only in helper lemmas, not in main proof body.
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL2.ComboHeelHookExhaust
 
 open CardName Action
 
-namespace ComboHeelHookExhaust_L2_Strict
+namespace ComboHeelHookExhaust_L2
 
 -- ============================================================
 -- Deck definition (v2: CardName x count)
 -- IDs: HH1=0, HH2=1, N=2, Mal=3, PW=4, Adr=5, DDD=6, AI=7, EP=8, BF=9
 -- ============================================================
-
-def allCards : List (CardName × Nat) :=
-  [(HeelHookPlus, 2), (NeutralizePlus, 1), (MalaisePlus, 1), (PiercingWail, 1),
-   (AdrenalinePlus, 1), (DieDieDiePlus, 1), (AfterImage, 1), (EscapePlanPlus, 1),
-   (BackflipPlus, 1)]
-
-def enemy : EnemyState := { vulnerable := 0, weak := 2, intending := false }
 
 -- Card instance abbreviations
 def hh1 : CardInstance := { id := 0, name := HeelHookPlus, cost := 1, damage := 8 }
@@ -228,7 +220,7 @@ def stateR4 : GameState := {
 
 -- Helper lemmas (native_decide allowed: all inputs concrete)
 theorem setup_ok :
-    execute cardDB (mkInitialState cardDB allCards enemy) setupTrace = some stateA := by
+    execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA := by
   native_decide
 
 theorem no_end : noEndTurn loopTrace = true := by native_decide
@@ -301,9 +293,11 @@ theorem loop_l2 (oracle : ShuffleOracle) (hv : validOracle oracle) :
 
 -- Main theorem (NO native_decide -- only refine/intro/exact)
 theorem ComboHeelHookExhaust_guaranteed_infinite :
-    GuaranteedInfiniteCombo cardDB allCards enemy := by
+    GuaranteedInfiniteCombo cardDB cards enemy := by
   refine ⟨setupTrace, stateA, setup_ok, ?_⟩
   intro oracle hValid
   exact ⟨loopTrace, stateB, 2, loop_l2 oracle hValid, no_end, same_mod, dealt_dmg⟩
 
-end ComboHeelHookExhaust_L2_Strict
+theorem proof : GuaranteedInfiniteCombo cardDB cards enemy := ComboHeelHookExhaust_guaranteed_infinite
+
+end ComboHeelHookExhaust_L2

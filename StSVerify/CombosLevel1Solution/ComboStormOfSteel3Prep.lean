@@ -12,17 +12,11 @@
   -> draw 3 from 5-card shuffle -> play 4 Shivs -> back to stateA
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboStormOfSteel3Prep
 
 open CardName Action
 
-namespace ComboStormOfSteel3Prep
-
-def cards : List (CardName × Nat) := [
-  (StormOfSteelPlus, 1), (TacticianPlus, 1), (ReflexPlus, 1), (PreparedPlus, 3)]
-
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
+namespace ComboStormOfSteel3Prep_L1
 
 -- Card instance IDs:
 -- 0 = Storm of Steel+, 1 = Tactician+, 2 = Reflex+,
@@ -123,4 +117,6 @@ theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 theorem ComboStormOfSteel3Prep_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboStormOfSteel3Prep
+theorem proof : InfiniteCombo cardDB cards enemy := ComboStormOfSteel3Prep_infinite
+
+end ComboStormOfSteel3Prep_L1

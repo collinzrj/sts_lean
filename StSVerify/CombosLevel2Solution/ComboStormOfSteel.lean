@@ -4,9 +4,8 @@
   stateA: all 4 in hand. Two loop variants depending on oracle.
 -/
 
-import StSVerify.Engine
+import StSVerify.CombosSpecL2.ComboStormOfSteel
 import StSVerify.EngineHelperLemmas
-import StSVerify.CardDB
 
 open CardName Action
 
@@ -16,10 +15,6 @@ private def ci0 : CardInstance := { id := 0, name := StormOfSteelPlus, cost := 1
 private def ci1 : CardInstance := { id := 1, name := TacticianPlus, cost := 0, damage := 0 }
 private def ci2 : CardInstance := { id := 2, name := ReflexPlus, cost := 0, damage := 0 }
 private def ci3 : CardInstance := { id := 3, name := PreparedPlus, cost := 0, damage := 0 }
-
-def cards : List (CardName × Nat) := [
-  (StormOfSteelPlus, 1), (TacticianPlus, 1), (ReflexPlus, 1), (PreparedPlus, 1)]
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
 
 def setupTrace : List Action := [
   .draw 0, .draw 1, .draw 2, .draw 3, .failDraw,
@@ -407,5 +402,7 @@ theorem ComboStormOfSteel_guaranteed_infinite :
       hsh0_mem hps (hValid 1 (mkPile1_ps (oracle 0 pile0)))
     have hsh2_mem := perm3_mem (oracle 2 pile2_ps) (hValid 2 pile2_ps)
     exact handle_ps _ _ _ hsh0_mem hps hsh1_mem hsh2_mem oracle rfl rfl rfl
+
+theorem proof : GuaranteedInfiniteCombo cardDB cards enemy := ComboStormOfSteel_guaranteed_infinite
 
 end ComboStormOfSteel_L2

@@ -15,32 +15,18 @@
     H1(retrieve Rec), H2(retrieve Skim). Net: 0 energy, +20 damage, state cycles.
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboStreamlineHologram
 
 open CardName Action
 
-namespace ComboStreamlineHologram
+namespace ComboStreamlineHologram_L1
 
 -- ============================================================
 -- FRAMEWORK-GENERATED (DO NOT MODIFY)
 -- ============================================================
 
 -- Card list: (CardName × count)
-def cards : List (CardName × Nat) :=
-  [ (StreamlinePlus, 1)      -- id 0
-  , (HologramPlus, 2)        -- ids 1,2
-  , (CoolheadedPlus, 1)      -- id 3
-  , (DefragmentPlus, 1)      -- id 4
-  , (BiasedCognitionPlus, 1) -- id 5
-  , (CapacitorPlus, 1)       -- id 6
-  , (RecyclePlus, 1)         -- id 7
-  , (SkimPlus, 1)            -- id 8
-  , (TurboPlus, 1)           -- id 9
-  , (RebootPlus, 1)          -- id 10
-  ]
 
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
 
 -- ============================================================
 -- LLM FILLS IN BELOW
@@ -189,4 +175,6 @@ theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 theorem ComboStreamlineHologram_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboStreamlineHologram
+theorem proof : InfiniteCombo cardDB cards enemy := ComboStreamlineHologram_infinite
+
+end ComboStreamlineHologram_L1

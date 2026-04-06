@@ -13,9 +13,8 @@
   Oracle only affects draw order in the 3-card shuffle, not the outcome.
 -/
 
-import StSVerify.Engine
+import StSVerify.CombosSpecL2.ComboStormStrike
 import StSVerify.EngineHelperLemmas
-import StSVerify.CardDB
 
 open CardName Action
 
@@ -27,10 +26,7 @@ private def ci2 : CardInstance := { id := 2, name := ReflexPlus, cost := 0, dama
 private def ci3 : CardInstance := { id := 3, name := PreparedPlus, cost := 0, damage := 0 }
 private def ci4 : CardInstance := { id := 4, name := StrikeSilent, cost := 1, damage := 6 }
 
-def allCards : List (CardName × Nat) :=
-  [(StormOfSteelPlus, 1), (TacticianPlus, 1), (ReflexPlus, 1), (PreparedPlus, 1), (StrikeSilent, 1)]
 
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
 
 -- Setup: draw 5, play SoS, draw 3, play 4 shivs, play Prep, draw 2, discard 2, draw 3
 def setupTrace : List Action := [
@@ -58,7 +54,7 @@ def stateA : GameState := {
 }
 
 theorem setup_ok :
-    execute cardDB (mkInitialState cardDB allCards enemy) setupTrace = some stateA := by
+    execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA := by
   native_decide
 
 -- Piles (what gets shuffled at each index)
@@ -205,7 +201,7 @@ private theorem handle_loop (sh1 : List CardInstance)
 
 -- Main theorem
 theorem ComboStormStrike_L2_guaranteed_infinite :
-    GuaranteedInfiniteCombo cardDB allCards enemy := by
+    GuaranteedInfiniteCombo cardDB cards enemy := by
   refine ⟨setupTrace, stateA, setup_ok, ?_⟩
   intro oracle hValid
   -- The oracle controls shuffles. Shuffle 0 is of [ci4] (1 card), shuffle 1 is of pile1 (3 cards).
@@ -216,5 +212,7 @@ theorem ComboStormStrike_L2_guaranteed_infinite :
   -- 3-element shuffle: oracle returns a permutation of pile1
   have hsh1_mem := perm3_mem (oracle 1 pile1) (hValid 1 pile1)
   exact handle_loop _ hsh1_mem oracle hsh0 rfl
+
+theorem proof : GuaranteedInfiniteCombo cardDB cards enemy := ComboStormStrike_L2_guaranteed_infinite
 
 end ComboStormStrike_L2

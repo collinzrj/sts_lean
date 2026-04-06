@@ -4,24 +4,17 @@
   v2 engine rewrite
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboDropkickExhaust
 
 open CardName Action
 
-namespace ComboDropkickExhaust
+namespace ComboDropkickExhaust_L1
 
 -- ============================================================
 -- Deck definition
 -- IDs: Bash+=0, DK1=1, DK2=2, TG1=3, TG2=4, BP=5, SIO+=6, Off+=7, Pur=8, BC+=9, PS+=10
 -- ============================================================
 
-def allCards : List (CardName × Nat) :=
-  [(BashPlus, 1), (Dropkick, 2), (TrueGritPlus, 2), (BurningPactPlus, 1),
-   (ShrugItOffPlus, 1), (OfferingPlus, 1), (Purity, 1), (BattleCryPlus, 1),
-   (PommelStrikePlus, 1)]
-
-def enemy : EnemyState := { vulnerable := 3, weak := 0, intending := false }
 
 -- ============================================================
 -- Traces
@@ -119,7 +112,7 @@ def stateB : GameState := {
 -- ============================================================
 
 theorem setup_ok :
-    execute cardDB (mkInitialState cardDB allCards enemy) setupTrace = some stateA := by
+    execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA := by
   native_decide
 
 theorem loop_ok :
@@ -130,7 +123,9 @@ theorem no_end : noEndTurn loopTrace = true := by native_decide
 theorem same_mod : sameModAccum stateA stateB = true := by native_decide
 theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 
-theorem ComboDropkickExhaust_infinite : InfiniteCombo cardDB allCards enemy :=
+theorem ComboDropkickExhaust_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboDropkickExhaust
+theorem proof : InfiniteCombo cardDB cards enemy := ComboDropkickExhaust_infinite
+
+end ComboDropkickExhaust_L1

@@ -4,24 +4,17 @@
   v2 engine rewrite
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboHeelHookExhaust
 
 open CardName Action
 
-namespace ComboHeelHookExhaust
+namespace ComboHeelHookExhaust_L1
 
 -- ============================================================
 -- Deck definition
 -- IDs: HH1=0, HH2=1, N=2, Mal=3, PW=4, Adr=5, DDD=6, AI=7, EP=8, BF=9
 -- ============================================================
 
-def allCards : List (CardName × Nat) :=
-  [(HeelHookPlus, 2), (NeutralizePlus, 1), (MalaisePlus, 1), (PiercingWail, 1),
-   (AdrenalinePlus, 1), (DieDieDiePlus, 1), (AfterImage, 1), (EscapePlanPlus, 1),
-   (BackflipPlus, 1)]
-
-def enemy : EnemyState := { vulnerable := 0, weak := 2, intending := false }
 
 -- ============================================================
 -- Traces
@@ -113,7 +106,7 @@ def stateB : GameState := {
 -- ============================================================
 
 theorem setup_ok :
-    execute cardDB (mkInitialState cardDB allCards enemy) setupTrace = some stateA := by
+    execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA := by
   native_decide
 
 theorem loop_ok :
@@ -124,7 +117,9 @@ theorem no_end : noEndTurn loopTrace = true := by native_decide
 theorem same_mod : sameModAccum stateA stateB = true := by native_decide
 theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 
-theorem ComboHeelHookExhaust_infinite : InfiniteCombo cardDB allCards enemy :=
+theorem ComboHeelHookExhaust_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboHeelHookExhaust
+theorem proof : InfiniteCombo cardDB cards enemy := ComboHeelHookExhaust_infinite
+
+end ComboHeelHookExhaust_L1

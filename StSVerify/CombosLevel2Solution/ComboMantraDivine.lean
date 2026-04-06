@@ -4,9 +4,8 @@
   FlurryOfBlows+, EmptyMind+, Prostrate+, plus setup-only cards.
   48 oracle cases (24 × 2), split into individual native_decide theorems.
 -/
-import StSVerify.Engine
+import StSVerify.CombosSpecL2.ComboMantraDivine
 import StSVerify.EngineHelperLemmas
-import StSVerify.CardDB
 open CardName Action
 namespace ComboMantraDivine_L2
 private def ci3 : CardInstance := {id:=3,name:=EruptionPlus,cost:=1,damage:=9}
@@ -14,8 +13,6 @@ private def ci4 : CardInstance := {id:=4,name:=InnerPeace,cost:=1,damage:=0}
 private def ci6 : CardInstance := {id:=6,name:=ProstatePlus,cost:=0,damage:=0}
 private def ci7 : CardInstance := {id:=7,name:=EmptyMindPlus,cost:=1,damage:=0}
 private def ci8 : CardInstance := {id:=8,name:=FlurryOfBlowsPlus,cost:=0,damage:=6}
-def cards : List (CardName × Nat) := [(Rushdown,2),(MentalFortressPlus,1),(EruptionPlus,1),(InnerPeace,1),(PrayPlus,1),(ProstatePlus,1),(EmptyMindPlus,1),(FlurryOfBlowsPlus,1),(Scrawl,1),(VaultPlus,1),(DeusExMachina,1),(OmnisciencePlus,1)]
-def enemy : EnemyState := {vulnerable:=0,weak:=0,intending:=false}
 def setupTrace : List Action := [.draw 9,.draw 0,.draw 1,.draw 2,.draw 11,.resolveDrawTrigger 11,.play 13,.play 14,.play 0,.play 1,.play 2,.play 9,.draw 3,.draw 4,.draw 5,.draw 6,.draw 7,.draw 8,.draw 10,.draw 12,.failDraw,.play 8,.play 6,.play 4,.endTurn,.draw 3,.draw 4,.draw 5,.draw 10,.draw 12,.play 4,.draw 6,.draw 8,.draw 7,.play 8,.play 6,.play 7,.draw 4,.draw 8,.draw 6,.play 4,.play 8]
 def stateA : GameState := {hand:=[ci6,{id:=12,name:=OmnisciencePlus,cost:=3,damage:=0},{id:=10,name:=VaultPlus,cost:=2,damage:=0},{id:=5,name:=PrayPlus,cost:=1,damage:=0},ci3],drawPile:=[],discardPile:=[ci8,ci4,ci7],exhaustPile:=[{id:=9,name:=Scrawl,cost:=1,damage:=0},{id:=14,name:=Miracle,cost:=0,damage:=0},{id:=13,name:=Miracle,cost:=0,damage:=0},{id:=11,name:=DeusExMachina,cost:=0,damage:=0}],inUse:=[],actionQueue:=[],energy:=2,damage:=30,block:=17,stance:=.Calm,orbs:=[],orbSlots:=3,focus:=0,enemy:={vulnerable:=0,weak:=0,intending:=false},activePowers:=[MentalFortressPlus,Rushdown,Rushdown],nextId:=15,noDraw:=false,corruptionActive:=false}
 private def stateB : GameState := {hand:=[ci3,ci6,{id:=12,name:=OmnisciencePlus,cost:=3,damage:=0},{id:=10,name:=VaultPlus,cost:=2,damage:=0},{id:=5,name:=PrayPlus,cost:=1,damage:=0}],drawPile:=[],discardPile:=[ci8,ci4,ci7],exhaustPile:=stateA.exhaustPile,inUse:=[],actionQueue:=[],energy:=2,damage:=81,block:=41,stance:=.Calm,orbs:=[],orbSlots:=3,focus:=0,enemy:={vulnerable:=0,weak:=0,intending:=false},activePowers:=[MentalFortressPlus,Rushdown,Rushdown],nextId:=15,noDraw:=false,corruptionActive:=false}
@@ -214,5 +211,7 @@ theorem ComboMantraDivine_guaranteed_infinite : GuaranteedInfiniteCombo cardDB c
   have hp0 := hValid 0 pile0
   have hp1 := perm_2_ci _ ci4 ci8 (by decide) (hValid 1 pile1)
   exact perm4_dispatch _ hp0 _ hp1 oracle rfl rfl
+
+theorem proof : GuaranteedInfiniteCombo cardDB cards enemy := ComboMantraDivine_guaranteed_infinite
 
 end ComboMantraDivine_L2

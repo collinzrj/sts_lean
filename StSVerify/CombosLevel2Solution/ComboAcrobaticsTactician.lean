@@ -10,8 +10,8 @@
   All 4 satisfy sameModAccum and dealtDamage.
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL2.ComboAcrobaticsTactician
+import StSVerify.EngineHelperLemmas
 
 open CardName Action
 
@@ -34,13 +34,7 @@ private def ci10 : CardInstance := { id := 10, name := EscapePlanPlus,  cost := 
 -- FRAMEWORK-GENERATED
 -- ============================================================
 
-def cards : List (CardName × Nat) := [
-  (AcrobaticsPlus, 2), (TacticianPlus, 1), (ReflexPlus, 1),
-  (BackflipPlus, 2), (NeutralizePlus, 1), (AfterImage, 1),
-  (AdrenalinePlus, 1), (CaltropPlus, 1), (EscapePlanPlus, 1),
-  (GrandFinalePlus, 1)]
-
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
+-- cards and enemy imported from CombosSpecL2.ComboAcrobaticsTactician
 
 -- ============================================================
 -- SETUP
@@ -771,5 +765,9 @@ theorem ComboAcrobaticsTactician_guaranteed_infinite :
       loop_yx oracle hvalid h2 h3, noEndTurn_yx oracle h2 h3, same_mod_yx, dealt_dmg_yx⟩
   · exact ⟨mkLoopTrace oracle, stateByy, 4,
       loop_yy oracle hvalid h2 h3, noEndTurn_yy oracle h2 h3, same_mod_yy, dealt_dmg_yy⟩
+
+-- Exported for checker
+theorem proof : GuaranteedInfiniteCombo cardDB cards enemy :=
+  ComboAcrobaticsTactician_guaranteed_infinite
 
 end ComboAcrobaticsTactician_L2

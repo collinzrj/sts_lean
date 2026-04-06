@@ -14,9 +14,8 @@
   Total: 48 cases, all verified by native_decide in batches.
 -/
 
-import StSVerify.Engine
+import StSVerify.CombosSpecL2.ComboStreamlineHologram
 import StSVerify.EngineHelperLemmas
-import StSVerify.CardDB
 
 open CardName Action
 
@@ -36,20 +35,7 @@ private def ci12 : CardInstance := { id := 12, name := Void,            cost := 
 -- Deck definition (v2: CardName × count)
 -- ============================================================
 
-def cards : List (CardName × Nat) :=
-  [ (StreamlinePlus, 1)      -- id 0
-  , (HologramPlus, 2)        -- ids 1,2
-  , (CoolheadedPlus, 1)      -- id 3
-  , (DefragmentPlus, 1)      -- id 4
-  , (BiasedCognitionPlus, 1) -- id 5
-  , (CapacitorPlus, 1)       -- id 6
-  , (RecyclePlus, 1)         -- id 7
-  , (SkimPlus, 1)            -- id 8
-  , (TurboPlus, 1)           -- id 9
-  , (RebootPlus, 1)          -- id 10
-  ]
 
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
 
 -- ============================================================
 -- SETUP AND LOOP
@@ -359,5 +345,7 @@ theorem ComboStreamlineHologram_guaranteed_infinite :
   have hp0 := perm2_mem (oracle 0 pile0) (hValid 0 pile0)
   have hp1 := perm4_mem (oracle 1 pile1) (hValid 1 pile1)
   exact handle_loop _ _ hp0 hp1 oracle rfl rfl
+
+theorem proof : GuaranteedInfiniteCombo cardDB cards enemy := ComboStreamlineHologram_guaranteed_infinite
 
 end ComboStreamlineHologram_L2

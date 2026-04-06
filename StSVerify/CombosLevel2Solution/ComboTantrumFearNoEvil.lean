@@ -6,9 +6,8 @@
   drawCondBool bridge lifts fixed-oracle results to arbitrary oracles.
 -/
 
-import StSVerify.Engine
+import StSVerify.CombosSpecL2.ComboTantrumFearNoEvil
 import StSVerify.EngineHelperLemmas
-import StSVerify.CardDB
 
 open CardName Action
 
@@ -29,12 +28,7 @@ private def exhaustConst : List CardInstance :=
 private def powersConst : List CardName := [MentalFortressPlus, Rushdown, Rushdown]
 private def enemyConst : EnemyState := { vulnerable := 0, weak := 0, intending := true }
 
-def cards : List (CardName × Nat) :=
-  [ (Rushdown, 2), (MentalFortressPlus, 1), (TantrumPlus, 1),
-    (FearNoEvilPlus, 2), (FlurryOfBlowsPlus, 2), (Scrawl, 1),
-    (VaultPlus, 1), (DeusExMachina, 1) ]
 
-def enemy : EnemyState := enemyConst
 
 def setupTrace : List Action := [
   .draw 0, .draw 1, .draw 2, .draw 3, .draw 4,
@@ -226,5 +220,7 @@ theorem ComboTantrumFearNoEvil_guaranteed_infinite :
   · exact mk_case _ exec4 dc4 rfl oracle h
   · exact mk_case _ exec5 dc5 rfl oracle h
   · exact mk_case _ exec6 dc6 rfl oracle h
+
+theorem proof : GuaranteedInfiniteCombo cardDB cards enemy := ComboTantrumFearNoEvil_guaranteed_infinite
 
 end ComboTantrumFearNoEvil_L2

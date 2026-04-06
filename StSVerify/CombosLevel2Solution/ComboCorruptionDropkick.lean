@@ -10,25 +10,17 @@
   STRICT: native_decide only in helper lemmas, not in main proof body.
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL2.ComboCorruptionDropkick
 
 open CardName Action
 
-namespace ComboCorruptionDropkick_L2_Strict
+namespace ComboCorruptionDropkick_L2
 
 -- ============================================================
 -- Deck definition (v2: CardName x count)
 -- IDs: Corr=0, DE+=1, FNP+=2, Bash+=3, DK1=4, DK2=5,
 --      SIO1=6, SIO2=7, TG+=8, Met+=9, Imp+=10, Off=11, BT+=12
 -- ============================================================
-
-def allCards : List (CardName × Nat) :=
-  [(Corruption, 1), (DarkEmbracePlus, 1), (FeelNoPainPlus, 1), (BashPlus, 1),
-   (Dropkick, 2), (ShrugItOff, 2), (TrueGritPlus, 1), (MetallicizePlus, 1),
-   (ImperviousPlus, 1), (Offering, 1), (BattleTrancePlus, 1)]
-
-def enemy : EnemyState := { vulnerable := 3, weak := 0, intending := false }
 
 -- Card instance abbreviations for readability
 def dk1 : CardInstance := { id := 4, name := Dropkick, cost := 1, damage := 5 }
@@ -218,7 +210,7 @@ def stateR4 : GameState := {
 
 -- Helper lemmas (native_decide allowed: all inputs concrete)
 theorem setup_ok :
-    execute cardDB (mkInitialState cardDB allCards enemy) setupTrace = some stateA := by
+    execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA := by
   native_decide
 
 theorem no_end : noEndTurn loopTrace = true := by native_decide
@@ -291,9 +283,11 @@ theorem loop_l2 (oracle : ShuffleOracle) (hv : validOracle oracle) :
 
 -- Main theorem (NO native_decide -- only refine/intro/exact)
 theorem ComboCorruptionDropkick_guaranteed_infinite :
-    GuaranteedInfiniteCombo cardDB allCards enemy := by
+    GuaranteedInfiniteCombo cardDB cards enemy := by
   refine ⟨setupTrace, stateA, setup_ok, ?_⟩
   intro oracle h_valid
   exact ⟨loopTrace, stateB, 2, loop_l2 oracle h_valid, no_end, same_mod, dealt_dmg⟩
 
-end ComboCorruptionDropkick_L2_Strict
+theorem proof : GuaranteedInfiniteCombo cardDB cards enemy := ComboCorruptionDropkick_guaranteed_infinite
+
+end ComboCorruptionDropkick_L2

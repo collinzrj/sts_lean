@@ -4,12 +4,11 @@
   v2 engine rewrite
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboCorruptionDropkick
 
 open CardName Action
 
-namespace ComboCorruptionDropkick
+namespace ComboCorruptionDropkick_L1
 
 -- ============================================================
 -- Deck definition
@@ -17,12 +16,6 @@ namespace ComboCorruptionDropkick
 --      SIO1=6, SIO2=7, TG+=8, Met+=9, Imp+=10, Off=11, BT+=12
 -- ============================================================
 
-def allCards : List (CardName × Nat) :=
-  [(Corruption, 1), (DarkEmbracePlus, 1), (FeelNoPainPlus, 1), (BashPlus, 1),
-   (Dropkick, 2), (ShrugItOff, 2), (TrueGritPlus, 1), (MetallicizePlus, 1),
-   (ImperviousPlus, 1), (Offering, 1), (BattleTrancePlus, 1)]
-
-def enemy : EnemyState := { vulnerable := 3, weak := 0, intending := false }
 
 -- ============================================================
 -- Traces
@@ -97,7 +90,7 @@ def stateB : GameState :=
 -- ============================================================
 
 theorem setup_ok :
-    execute cardDB (mkInitialState cardDB allCards enemy) setupTrace = some stateA := by
+    execute cardDB (mkInitialState cardDB cards enemy) setupTrace = some stateA := by
   native_decide
 
 theorem loop_ok :
@@ -108,7 +101,9 @@ theorem no_end : noEndTurn loopTrace = true := by native_decide
 theorem same_mod : sameModAccum stateA stateB = true := by native_decide
 theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 
-theorem ComboCorruptionDropkick_infinite : InfiniteCombo cardDB allCards enemy :=
+theorem ComboCorruptionDropkick_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboCorruptionDropkick
+theorem proof : InfiniteCombo cardDB cards enemy := ComboCorruptionDropkick_infinite
+
+end ComboCorruptionDropkick_L1

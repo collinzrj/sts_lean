@@ -7,17 +7,11 @@
   autoDrain discards hand R-to-L, fires Tactician (+2E top) and Reflex (draw 3 bottom).
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboStormOfSteel
 
 open CardName Action
 
-namespace ComboStormOfSteel
-
-def cards : List (CardName × Nat) := [
-  (StormOfSteelPlus, 1), (TacticianPlus, 1), (ReflexPlus, 1), (PreparedPlus, 1)]
-
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
+namespace ComboStormOfSteel_L1
 
 -- Card instance IDs assigned by mkInitialState:
 -- 0 = Storm of Steel+, 1 = Tactician+, 2 = Reflex+, 3 = Prepared+
@@ -114,4 +108,6 @@ theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 theorem ComboStormOfSteel_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboStormOfSteel
+theorem proof : InfiniteCombo cardDB cards enemy := ComboStormOfSteel_infinite
+
+end ComboStormOfSteel_L1

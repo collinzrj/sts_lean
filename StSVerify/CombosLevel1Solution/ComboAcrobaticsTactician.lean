@@ -10,20 +10,11 @@
   Discarding Tactician/Reflex fires triggers automatically via fireOnDiscard.
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboAcrobaticsTactician
 
 open CardName Action
 
-namespace ComboAcrobaticsTactician
-
-def cards : List (CardName × Nat) := [
-  (AcrobaticsPlus, 2), (TacticianPlus, 1), (ReflexPlus, 1),
-  (BackflipPlus, 2), (NeutralizePlus, 1), (AfterImage, 1),
-  (AdrenalinePlus, 1), (CaltropPlus, 1), (EscapePlanPlus, 1),
-  (GrandFinalePlus, 1)]
-
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
+namespace ComboAcrobaticsTactician_L1
 
 -- Card instance IDs (assigned by mkInitialState):
 -- 0 = Acrobatics+#1, 1 = Acrobatics+#2, 2 = Tactician+, 3 = Reflex+,
@@ -140,4 +131,6 @@ theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 theorem ComboAcrobaticsTactician_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboAcrobaticsTactician
+theorem proof : InfiniteCombo cardDB cards enemy := ComboAcrobaticsTactician_infinite
+
+end ComboAcrobaticsTactician_L1

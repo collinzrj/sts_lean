@@ -3,33 +3,17 @@
   Cards: 13
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboMantraDivine
 
 open CardName Action
 
-namespace ComboMantraDivine
+namespace ComboMantraDivine_L1
 
 -- ============================================================
 -- FRAMEWORK-GENERATED (DO NOT MODIFY)
 -- ============================================================
 
-def cards : List (CardName × Nat) :=
-  [ (Rushdown, 2)             -- ids 0,1
-  , (MentalFortressPlus, 1)   -- id 2
-  , (EruptionPlus, 1)         -- id 3
-  , (InnerPeace, 1)           -- id 4
-  , (PrayPlus, 1)             -- id 5
-  , (ProstatePlus, 1)         -- id 6
-  , (EmptyMindPlus, 1)        -- id 7
-  , (FlurryOfBlowsPlus, 1)    -- id 8
-  , (Scrawl, 1)               -- id 9
-  , (VaultPlus, 1)            -- id 10
-  , (DeusExMachina, 1)        -- id 11
-  , (OmnisciencePlus, 1)      -- id 12
-  ]
 
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
 
 -- ============================================================
 -- LLM FILLS IN BELOW
@@ -163,4 +147,6 @@ theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 theorem ComboMantraDivine_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboMantraDivine
+theorem proof : InfiniteCombo cardDB cards enemy := ComboMantraDivine_infinite
+
+end ComboMantraDivine_L1

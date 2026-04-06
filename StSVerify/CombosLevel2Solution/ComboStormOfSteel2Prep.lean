@@ -7,9 +7,8 @@
     Variant B (PS): draw 3 includes 0 Preps. Play SoS twice, then Prep.
 -/
 
-import StSVerify.Engine
+import StSVerify.CombosSpecL2.ComboStormOfSteel2Prep
 import StSVerify.EngineHelperLemmas
-import StSVerify.CardDB
 
 open CardName Action
 
@@ -20,10 +19,6 @@ private def ci1 : CardInstance := { id := 1, name := TacticianPlus, cost := 0, d
 private def ci2 : CardInstance := { id := 2, name := ReflexPlus, cost := 0, damage := 0 }
 private def ci3 : CardInstance := { id := 3, name := PreparedPlus, cost := 0, damage := 0 }
 private def ci4 : CardInstance := { id := 4, name := PreparedPlus, cost := 0, damage := 0 }
-
-def cards : List (CardName × Nat) := [
-  (StormOfSteelPlus, 1), (TacticianPlus, 1), (ReflexPlus, 1), (PreparedPlus, 2)]
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := false }
 
 def setupTrace : List Action := [
   .draw 0, .draw 1, .draw 2, .draw 3, .draw 4
@@ -541,5 +536,7 @@ theorem ComboStormOfSteel2Prep_guaranteed_infinite :
     have hsh2_mem := perm3of_mem_ps2 (oracle 0 pile0) (oracle 2 (mkPile2_ps (oracle 0 pile0)))
       hsh0_mem hps (hValid 2 (mkPile2_ps (oracle 0 pile0)))
     exact handle_ps _ _ _ hsh0_mem hps hsh1_mem hsh2_mem oracle rfl rfl rfl
+
+theorem proof : GuaranteedInfiniteCombo cardDB cards enemy := ComboStormOfSteel2Prep_guaranteed_infinite
 
 end ComboStormOfSteel2Prep_L2

@@ -3,32 +3,17 @@
   Cards: 12
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboStandardWatcher
 
 open CardName Action
 
-namespace ComboStandardWatcher
+namespace ComboStandardWatcher_L1
 
 -- ============================================================
 -- FRAMEWORK-GENERATED (DO NOT MODIFY)
 -- ============================================================
 
-def cards : List (CardName × Nat) :=
-  [ (Rushdown, 2)             -- ids 0,1
-  , (MentalFortressPlus, 1)   -- id 2
-  , (EruptionPlus, 1)         -- id 3
-  , (TantrumPlus, 1)          -- id 4
-  , (InnerPeacePlus, 1)       -- id 5
-  , (FearNoEvilPlus, 1)       -- id 6
-  , (FlurryOfBlowsPlus, 1)    -- id 7
-  , (Scrawl, 1)               -- id 8
-  , (VaultPlus, 1)            -- id 9
-  , (DeusExMachina, 1)        -- id 10
-  , (TalkToTheHandPlus, 1)    -- id 11
-  ]
 
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := true }
 
 -- ============================================================
 -- LLM FILLS IN BELOW
@@ -166,4 +151,6 @@ theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 theorem ComboStandardWatcher_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboStandardWatcher
+theorem proof : InfiniteCombo cardDB cards enemy := ComboStandardWatcher_infinite
+
+end ComboStandardWatcher_L1

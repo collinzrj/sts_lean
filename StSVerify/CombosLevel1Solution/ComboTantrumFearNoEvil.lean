@@ -3,29 +3,17 @@
   Cards: 11
 -/
 
-import StSVerify.Engine
-import StSVerify.CardDB
+import StSVerify.CombosSpecL1.ComboTantrumFearNoEvil
 
 open CardName Action
 
-namespace ComboTantrumFearNoEvil
+namespace ComboTantrumFearNoEvil_L1
 
 -- ============================================================
 -- FRAMEWORK-GENERATED (DO NOT MODIFY)
 -- ============================================================
 
-def cards : List (CardName × Nat) :=
-  [ (Rushdown, 2)             -- ids 0,1
-  , (MentalFortressPlus, 1)   -- id 2
-  , (TantrumPlus, 1)          -- id 3
-  , (FearNoEvilPlus, 2)       -- ids 4,5
-  , (FlurryOfBlowsPlus, 2)    -- ids 6,7
-  , (Scrawl, 1)               -- id 8
-  , (VaultPlus, 1)            -- id 9
-  , (DeusExMachina, 1)        -- id 10
-  ]
 
-def enemy : EnemyState := { vulnerable := 0, weak := 0, intending := true }
 
 -- ============================================================
 -- LLM FILLS IN BELOW
@@ -149,4 +137,6 @@ theorem dealt_dmg : dealtDamage stateA stateB = true := by native_decide
 theorem ComboTantrumFearNoEvil_infinite : InfiniteCombo cardDB cards enemy :=
   ⟨setupTrace, loopTrace, stateA, stateB, setup_ok, loop_ok, no_end, same_mod, dealt_dmg⟩
 
-end ComboTantrumFearNoEvil
+theorem proof : InfiniteCombo cardDB cards enemy := ComboTantrumFearNoEvil_infinite
+
+end ComboTantrumFearNoEvil_L1
