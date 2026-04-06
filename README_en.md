@@ -39,18 +39,27 @@ StSVerify/
   Cards/                     — One file per card definition (93 files)
   CardDB.lean                — CardName → CardDef lookup
   Demo.lean                  — Working Level 1 proof (Silent 5-card combo)
-  CombosTemplateL1/          — Level 1 templates with sorry (12 combos)
-  CombosTemplateL2/          — Level 2 templates with sorry (12 combos)
-  CombosLevel1Solution/      — Level 1 reference solutions (12/12 verified)
-  CombosLevel2Solution/      — Level 2 reference solutions (11/12 verified, 1 open)
-data/
-  combos_v2.jsonl            — Combo definitions (cards, enemy state, effects)
+  ExtendedTargets.lean       — Extended proof targets (bonus challenges)
+  CombosSpecL1/              — Level 1 specs: card lists + enemy state (READ-ONLY)
+  CombosSpecL2/              — Level 2 specs: card lists + enemy state (READ-ONLY)
+  CombosTemplateL1/          — Level 1 checkers: import spec+solution, type check + axiom audit (READ-ONLY)
+  CombosTemplateL2/          — Level 2 checkers: import spec+solution, type check + axiom audit (READ-ONLY)
+  CombosLevel1Solution/      — Level 1 solutions — LLM fills these (12/12 verified)
+  CombosLevel2Solution/      — Level 2 solutions — LLM fills these (11/12 verified, 1 open)
 eval/
-  eval_lean.py               — LLM evaluation harness
-  prompt_template.txt        — Prompt template
-generate_cards.py            — Generates Cards/*.lean and CardDB.lean
-generate_templates.py        — Generates template files from combos_v2.jsonl
+  eval.py                    — Grading script: integrity check + build + axiom audit
+  prepare.py                 — Preparation script: strip solutions, generate sorry stubs, snapshot checksums
 ```
+
+### Three-File Architecture
+
+Each combo × level has three files:
+
+1. **Spec file** (`CombosSpec{L1,L2}/`): defines `cards` and `enemy` (read-only)
+2. **Solution file** (`CombosLevel{1,2}Solution/`): LLM writes proof, exports `theorem proof`
+3. **Checker file** (`CombosTemplate{L1,L2}/`): imports spec + solution, verifies type match, `#print axioms` audits axioms (read-only)
+
+Lean's namespace mechanism prevents the solution file from redefining `cards` and `enemy` from the spec.
 
 ## Combos (12)
 
@@ -122,6 +131,62 @@ Harder combos use the **drawCondBool bridge** pattern. Example below.
 3. **Permutation completeness**: mathematical case analysis proves `List.Perm l pile → l ∈ allPerms` (Nodup + element membership)
 4. **Main theorem**: introduces oracle, combines bridge with verification. **No `native_decide` in main proof body**
 
+## Benchmark Evaluation
+
+### Preparing the Benchmark
+
+```bash
+# Clone the repo
+git clone <repo-url> && cd <repo>
+
+# Prepare: strip solutions, generate sorry stubs, snapshot checksums, clean build cache
+python eval/prepare.py
+```
+
+`prepare.py` will:
+1. Replace all solution files with sorry stubs (preserving correct namespace, imports, type signatures)
+2. Remove non-benchmark files (`legacy/`, `data/`, `generate_*.py`, READMEs, etc.)
+3. Remove `.git/` (use `--keep-git` to preserve)
+4. Snapshot SHA256 checksums of all read-only files
+5. Clean `.lake/build/` build cache
+
+### Running the Agent
+
+```bash
+claude --dangerously-skip-permissions -p "Read INSTRUCTIONS.md, then prove all theorems marked sorry in StSVerify/CombosLevel1Solution/ and StSVerify/CombosLevel2Solution/. Verify each proof compiles with lake build. If you finish, try the bonus challenges in StSVerify/ExtendedTargets.lean."
+```
+
+### Grading
+
+**Important:** The agent may have modified files under `eval/` (grading script, checksums). Before grading, restore the `eval/` directory from the original repo commit to ensure the evaluation logic has not been tampered with.
+
+```bash
+# Restore eval/ from the original commit (replace <commit-hash> with the commit before prepare.py was run)
+git clone <repo-url> /tmp/sts_eval_clean --depth 1 --branch <commit-or-tag>
+rm -rf eval/
+cp -r /tmp/sts_eval_clean/eval/ eval/
+
+# Grade: integrity check + build each test case + axiom audit
+python eval/eval.py grade
+```
+
+The grading script will:
+1. Verify all read-only file SHA256 checksums match the snapshot (any modification fails all tests)
+2. Run `lake build` for each test case
+3. Parse `#print axioms` output, rejecting `sorryAx` and custom axioms
+4. Output per-combo per-level pass/fail results to `eval/eval_results.json`
+
+## Commands
+
+```bash
+# Build and verify all proofs (full repo with reference solutions)
+export PATH="$HOME/.elan/bin:$PATH" && lake build
+
+# Verify a single test case
+lake build StSVerify.CombosTemplateL1.ComboDropkickExhaust
+lake build StSVerify.CombosTemplateL2.ComboDropkickExhaust
+```
+
 ## Open Questions
 
 The formalization surfaced several open questions (extended definitions in `ExtendedTargets.lean`):
@@ -137,43 +202,12 @@ The formalization surfaced several open questions (extended definitions in `Exte
 
 ## Soundness
 
-The eval harness checks LLM submissions for:
-- `sorry` — incomplete proof
-- `axiom` — false assumptions
-- `unsafe` — bypass kernel
-- `instance` — unsound decidability instances
-- Framework function redefinitions
-- Unauthorized imports
-- L2: `native_decide` not in main proof body (only engine helpers)
+The eval harness checks LLM submissions via a three-file architecture:
 
-## Benchmark Distribution
-
-`sts_benchmark.tar.gz` contains the full benchmark without reference solutions. Run the following to start testing directly without cloning the repo:
-
-```bash
-mkdir -p sts_benchmark
-curl -L -o sts_benchmark.tar.gz https://github.com/collinzrj/sts_lean/raw/main/sts_benchmark.tar.gz
-tar -xzf sts_benchmark.tar.gz -C sts_benchmark
-cd sts_benchmark
-claude --dangerously-skip-permissions "Read INSTRUCTIONS.md, then prove all theorems marked sorry in StSVerify/CombosTemplateL1/ and StSVerify/CombosTemplateL2/. Verify each proof compiles with lake build. If you finish, try the bonus challenges in StSVerify/ExtendedTargets.lean."
-```
-
-Prompt:
-> Read INSTRUCTIONS.md, then prove all theorems marked `sorry` in `StSVerify/CombosTemplateL1/` and `StSVerify/CombosTemplateL2/`. Verify each proof compiles with `lake build`. If you finish, try the bonus challenges in `StSVerify/ExtendedTargets.lean`.
-
-## Commands
-
-```bash
-# Build and verify all proofs (full repo with reference solutions)
-cd lean_framework && export PATH="$HOME/.elan/bin:$PATH" && lake build
-
-# Verify a single solution
-lake env lean StSVerify/CombosLevel1Solution/ComboDropkickExhaust.lean
-lake env lean StSVerify/CombosLevel2Solution/ComboDropkickExhaust.lean
-
-# Generate templates from combo data
-python generate_templates.py
-```
+1. **Integrity check**: SHA256 checksums of all read-only files must match the pre-agent snapshot
+2. **Type safety**: The checker file forces the solution's `proof` theorem to match the spec's `cards` and `enemy` — Lean's type system prevents mismatches
+3. **Axiom audit**: `#print axioms` must show only `{propext, Lean.ofReduceBool, Quot.sound, Classical.choice}` — no `sorryAx` or custom axioms
+4. **Namespace protection**: Lean prevents duplicate declarations, so the solution cannot redefine spec-provided `cards` or `enemy`
 
 ## Known Limitations
 

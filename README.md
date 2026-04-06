@@ -31,7 +31,7 @@
 - 为什么 `RobustInfinite` 不等于 `UnboundedDamage`？
   - `RobustInfinite`：`∃strategy ∀N`——玩家必须在**不知道目标伤害N**的情况下，先确定一个固定的无限操作序列。同一个策略必须对所有N都能达标。
   - `UnboundedDamage`：`∀N ∃trace`——玩家可以**根据N选择不同的操作序列**。每个目标N可以用量身定制的策略。
-  - 具体来说，UnboundedDamage允许玩家先“蓄力”（比如攒能量）然后打出一张可能破坏循环的卡，而RobustInfinite则是用户可以在打出伤害后无限继续
+  - 具体来说，UnboundedDamage允许玩家先"蓄力"（比如攒能量）然后打出一张可能破坏循环的卡，而RobustInfinite则是用户可以在打出伤害后无限继续
     - 其中的问题在于，如果存在一个血量未知的敌人（但是如果击杀可以看到反馈），那UnboundedDamage不存在必胜策略，而RobustInfinite可以必胜
 
 ## 项目结构
@@ -39,20 +39,32 @@
 ```
 StSVerify/
   Engine.lean                — 游戏引擎：状态、效果、动作、execute、executeL2
-  EngineHelperLemmas.lean    — 一些提前证明好的可以辅助证明的helper
+  EngineHelperLemmas.lean    — Oracle桥接引理（stepL2_oracle_cond等）
   CardId.lean                — 93 张卡牌名称全局枚举
   Cards/                     — 每张卡牌一个定义文件（93 个文件）
   CardDB.lean                — CardName → CardDef 查找表
   Demo.lean                  — Level 1 证明示例（猎手 5 卡连击）
-  CombosTemplateL1/          — Level 1 模板（12 个连击，含 sorry）
-  CombosTemplateL2/          — Level 2 模板（12 个连击，含 sorry）
-  CombosLevel1Solution/      — Level 1 参考解答（12/12 已验证）
-  CombosLevel2Solution/      — Level 2 参考解答（11/12 已验证，1 开放挑战）
-data/
-  combos_v2.jsonl            — 连击定义（卡牌、敌人状态、效果）
-generate_cards.py            — 生成 Cards/*.lean 和 CardDB.lean
-generate_templates.py        — 从 combos_v2.jsonl 生成模板文件
+  ExtendedTargets.lean       — 扩展证明目标（bonus challenges）
+  CombosSpecL1/              — Level 1 规格文件：卡牌列表 + 敌人状态（只读）
+  CombosSpecL2/              — Level 2 规格文件：卡牌列表 + 敌人状态（只读）
+  CombosTemplateL1/          — Level 1 检查器：导入规格+解答，类型检查+公理审计（只读）
+  CombosTemplateL2/          — Level 2 检查器：导入规格+解答，类型检查+公理审计（只读）
+  CombosLevel1Solution/      — Level 1 解答文件 — LLM填写（12/12 已验证）
+  CombosLevel2Solution/      — Level 2 解答文件 — LLM填写（11/12 已验证，1 开放挑战）
+eval/
+  eval.py                    — 评估脚本：完整性检查 + 构建 + 公理审计
+  prepare.py                 — 准备脚本：清除解答，生成sorry桩，快照校验和
 ```
+
+### 三文件架构
+
+每个连击×等级有三个文件：
+
+1. **规格文件** (`CombosSpec{L1,L2}/`)：定义 `cards` 和 `enemy`（只读）
+2. **解答文件** (`CombosLevel{1,2}Solution/`)：LLM编写证明，导出 `theorem proof`
+3. **检查器文件** (`CombosTemplate{L1,L2}/`)：导入规格和解答，验证类型匹配，`#print axioms` 审计公理（只读）
+
+Lean的命名空间机制确保解答文件不能重定义规格中的 `cards` 和 `enemy`。
 
 ## 连击列表（12 个）
 
@@ -124,44 +136,60 @@ generate_templates.py        — 从 combos_v2.jsonl 生成模板文件
 3. **排列完备性层**：数学 case analysis 证明 `List.Perm l pile → l ∈ allPerms`（Nodup + 元素成员性）
 4. **主定理层**：引入 oracle，组装桥接与验证。**主证明体中无 `native_decide`**
 
-## 安全性检查
+## Benchmark 评估
 
-评估框架检查 LLM 提交的代码：
-- `sorry` — 不完整证明
-- `axiom` — 虚假假设
-- `unsafe` — 绕过内核
-- `instance` — 不健全的可判定性实例
-- 框架函数重定义
-- 未授权的导入
-- L2：`native_decide` 不在主证明体中（仅限引擎辅助引理）
-
-## Benchmark 分发
-
-`sts_benchmark.tar.gz` 包含完整的 benchmark（不含参考解答）。解压后让 LLM agent 阅读 `INSTRUCTIONS.md` 并完成任务即可。运行以下命令即可直接开始测试，不需要clone repo
+### 准备 benchmark
 
 ```bash
-mkdir -p sts_benchmark
-curl -L -o sts_benchmark.tar.gz https://github.com/collinzrj/sts_lean/raw/main/sts_benchmark.tar.gz
-tar -xzf sts_benchmark.tar.gz -C sts_benchmark
-cd sts_benchmark 
-claude --dangerously-skip-permissions -p "Read INSTRUCTIONS.md, then prove all theorems marked sorry in StSVerify/CombosTemplateL1/ and StSVerify/CombosTemplateL2/. Verify each proof compiles with lake build. If you finish, try the bonus challenges in StSVerify/ExtendedTargets.lean."
+# 克隆仓库
+git clone <repo-url> && cd <repo>
+
+# 准备 benchmark：清除参考解答，生成 sorry 桩，快照校验和，清理构建缓存
+python eval/prepare.py
 ```
 
-Prompt:
-> Read INSTRUCTIONS.md, then prove all theorems marked `sorry` in `StSVerify/CombosTemplateL1/` and `StSVerify/CombosTemplateL2/`. Verify each proof compiles with `lake build`. If you finish, try the bonus challenges in `StSVerify/ExtendedTargets.lean`.
+`prepare.py` 会：
+1. 将所有解答文件替换为 sorry 桩（保留正确的命名空间、导入、类型签名）
+2. 删除非benchmark文件（`legacy/`, `data/`, `generate_*.py`, README 等）
+3. 删除 `.git/`（可选 `--keep-git` 保留）
+4. 快照所有只读文件的 SHA256 校验和
+5. 清理 `.lake/build/` 构建缓存
+
+### 运行 agent
+
+```bash
+claude --dangerously-skip-permissions -p "Read INSTRUCTIONS.md, then prove all theorems marked sorry in StSVerify/CombosLevel1Solution/ and StSVerify/CombosLevel2Solution/. Verify each proof compiles with lake build. If you finish, try the bonus challenges in StSVerify/ExtendedTargets.lean."
+```
+
+### 评估
+
+**重要：** agent可能修改了 `eval/` 目录下的文件（评估脚本、校验和）。评估前必须从仓库原始commit恢复 `eval/` 目录，确保评估逻辑未被篡改。
+
+```bash
+# 从仓库原始commit恢复eval目录（替换 <commit-hash> 为 prepare.py 运行前的commit）
+git clone <repo-url> /tmp/sts_eval_clean --depth 1 --branch <commit-or-tag>
+rm -rf eval/
+cp -r /tmp/sts_eval_clean/eval/ eval/
+
+# 评估：检查完整性 + 构建每个测试用例 + 公理审计
+python eval/eval.py grade
+```
+
+评估脚本会：
+1. 校验所有只读文件的 SHA256 是否与快照一致（任何修改则全部失败）
+2. 对每个测试用例运行 `lake build`
+3. 解析 `#print axioms` 输出，拒绝 `sorryAx` 和自定义公理
+4. 输出每个连击×等级的通过/失败结果到 `eval/eval_results.json`
 
 ## 命令
 
 ```bash
 # 构建并验证所有证明（含参考解答的完整仓库）
-cd lean_framework && export PATH="$HOME/.elan/bin:$PATH" && lake build
+export PATH="$HOME/.elan/bin:$PATH" && lake build
 
-# 验证单个解答
-lake env lean StSVerify/CombosLevel1Solution/ComboDropkickExhaust.lean
-lake env lean StSVerify/CombosLevel2Solution/ComboDropkickExhaust.lean
-
-# 从连击数据生成模板
-python generate_templates.py
+# 验证单个测试用例
+lake build StSVerify.CombosTemplateL1.ComboDropkickExhaust
+lake build StSVerify.CombosTemplateL2.ComboDropkickExhaust
 ```
 
 ## 开放问题
